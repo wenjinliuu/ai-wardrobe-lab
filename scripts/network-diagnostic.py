@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shlex
 import signal
+import socket
 import subprocess
 import tempfile
 import time
@@ -30,7 +31,7 @@ def download(label, url):
                 if not data:
                     break
                 result['bytes'] += len(data)
-        result['status'] = 'sample_complete' if result['bytes'] else 'empty'
+        result['status'] = ('byte_limit_reached' if result['bytes'] == LIMIT else 'time_limited_sample') if result['bytes'] else 'empty'
     except Exception as exc:
         result['status'] = 'error'
         result['error'] = str(exc)
@@ -39,7 +40,19 @@ def download(label, url):
     return result
 
 
-def download_checks():
+def download_checks(domestic=False):
+    if domestic:
+        results = []
+        for protocol in ('http', 'https'):
+            results.append(download('tencent_debian_'+protocol, protocol+'://mirrors.cloud.tencent.com/debian/dists/trixie/main/binary-amd64/Packages.xz'))
+            emit(results[-1])
+        results.append(download('tencent_pypi_index', 'https://mirrors.cloud.tencent.com/pypi/simple/fastapi/'))
+        emit(results[-1])
+        try:
+            emit({'tencent_mirror_resolved_ips': sorted({x[4][0] for x in socket.getaddrinfo('mirrors.cloud.tencent.com', 443)})})
+        except OSError as exc:
+            emit({'dns_error': str(exc)})
+        return results
     results = []
     for protocol in ('http', 'https'):
         results.append(download('debian_'+protocol, protocol+'://deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.xz'))
@@ -82,7 +95,7 @@ def ssh(script, **kwargs):
     return command(['ssh', 'diagnostic', script], **kwargs)
 
 
-def run(output):
+def run(output, domestic=False):
     results = {'runner_downloads': [], 'transfers': []}
     remote = None
     try:
@@ -99,12 +112,12 @@ def run(output):
             payload = os.urandom(LIMIT)
             sample = local/'sample.bin'; sample.write_bytes(payload)
             tiny = local/'tiny.bin';tiny.write_bytes(payload[:16384])
-            for label, argv, data, size in [
+            for label, argv, data, size in ([] if domestic else [
                 ('sftp_16KiB', ['scp', str(tiny), f'diagnostic:{remote}/sftp_16KiB.bin'], None, 16384),
                 ('sftp_1MiB', ['scp', str(sample), f'diagnostic:{remote}/sftp_1MiB.bin'], None, LIMIT),
                 ('legacy_scp_1MiB', ['scp', '-O', str(sample), f'diagnostic:{remote}/legacy_scp_1MiB.bin'], None, LIMIT),
                 ('ssh_stream_1MiB', ['ssh', 'diagnostic', f'cat > {shlex.quote(remote+"/ssh_stream_1MiB.bin")}'], payload, LIMIT),
-            ]:
+            ]):
                 emit({'starting': label, 'byte_limit': size, 'timeout_seconds': 60})
                 measured = command(argv, timeout=60, data=data)
                 actual = ssh(f'stat -c %s {shlex.quote(remote+"/"+label+".bin")} 2>/dev/null || echo 0')
@@ -118,12 +131,12 @@ def run(output):
             if copied['exit_code'] or copied['timed_out']:
                 results['server_downloads'] = {'status': 'script_copy_failed', 'detail': copied}
             else:
-                results['server_downloads'] = ssh(f'python3 {shlex.quote(remote+"/probe.py")} --downloads', timeout=90)
+                results['server_downloads'] = ssh(f'python3 {shlex.quote(remote+"/probe.py")} --downloads'+(' --domestic' if domestic else ''), timeout=90)
                 # Test cached Docker base only; explicitly prohibit pulling another image.
                 container = f'if docker image inspect python:3.12-slim >/dev/null 2>&1; then docker run --rm --pull=never --network bridge --mount type=bind,src={remote}/probe.py,dst=/probe.py,readonly python:3.12-slim python /probe.py --downloads; else echo "SKIPPED: Python base image is not present in Docker image store; build cache does not guarantee a runnable image."; fi'
-                results['container_downloads'] = ssh(container, timeout=90)
+                results['container_downloads'] = {'status': 'not_repeated_in_domestic_followup'} if domestic else ssh(container, timeout=90)
                 emit({'server_downloads': results['server_downloads'], 'container_downloads': results['container_downloads']})
-        results['runner_downloads'] = download_checks()
+        results['runner_downloads'] = download_checks(domestic)
     except Exception as exc:
         results['diagnostic_error'] = str(exc);emit({'diagnostic_error': str(exc)})
     finally:
@@ -136,9 +149,10 @@ def run(output):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--downloads', action='store_true')
+    parser.add_argument('--domestic', action='store_true')
     parser.add_argument('--output', default='network-diagnostic.json')
     args = parser.parse_args()
     if args.downloads:
-        download_checks()
+        download_checks(args.domestic)
     else:
-        run(args.output)
+        run(args.output, args.domestic)
