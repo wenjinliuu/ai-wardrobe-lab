@@ -9,6 +9,22 @@ env_file="$base/shared/.env"
 [[ -d "$target" ]] || { echo 'Missing release'; exit 1; }
 exec 9>"$base/deploy.lock"
 flock -n 9 || { echo 'Another deployment is running'; exit 1; }
+# A configuration edited as root may keep mode 600 but lose deploy ownership.
+# Use the already-running trusted image to repair only this file's owner/mode.
+# Never read or print credentials, pull an image, or grant world access.
+if [[ ! -r "$env_file" ]]; then
+    [[ ! -L "$env_file" ]] || { echo 'Refusing redirected configuration'; exit 1; }
+    repair_image=$(docker inspect --format '{{.Config.Image}}' wardrobe-lab-app-1)
+    [[ "$repair_image" =~ ^wardrobe-lab:[a-f0-9]{40}$ ]] || { echo 'No trusted running app image for configuration permission repair'; exit 1; }
+    echo 'Restoring configuration ownership for deployment account (values unchanged)'
+    docker run --rm --pull never --network none --read-only --user 0 \
+        --cap-drop ALL --cap-add CHOWN --cap-add FOWNER \
+        --mount "type=bind,src=$env_file,dst=/repair.env" \
+        --entrypoint python "$repair_image" -c \
+        'import os,stat,sys; p="/repair.env"; assert stat.S_ISREG(os.stat(p,follow_symlinks=False).st_mode); os.chown(p,int(sys.argv[1]),int(sys.argv[2])); os.chmod(p,0o600)' \
+        "$(id -u)" "$(id -g)"
+    [[ -r "$env_file" ]] || { echo 'Configuration remains unreadable; stopped before service changes'; exit 1; }
+fi
 previous=$(readlink -f "$base/current" || true)
 cd "$target"
 export LAB_APP_IMAGE="wardrobe-lab:$release"

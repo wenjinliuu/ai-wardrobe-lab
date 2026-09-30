@@ -2,7 +2,7 @@ name: Deploy to Tencent Lighthouse
 on:
   push:
     branches: [main]
-    paths: ['app/**', 'web/**', 'config/**', 'tests/**', 'requirements*.txt', 'Dockerfile', 'compose.yaml', '.github/workflows/deploy.yml']
+    paths: ['app/**', 'web/**', 'config/**', 'tests/**', 'requirements*.txt', 'Dockerfile', 'compose.yaml', 'scripts/deploy.sh', '.github/workflows/deploy.yml']
   workflow_dispatch:
 permissions:
   contents: read

@@ -13,6 +13,26 @@ spec.loader.exec_module(cleanup)
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_unreadable_config_repairs_only_owner_mode_without_exposing_values(self):
+        if os.geteuid()==0:self.skipTest('Permission checks require the non-root CI deployment identity')
+        with tempfile.TemporaryDirectory() as directory:
+            base=Path(directory);base.chmod(0o777)
+            sha='a'*40;target=base/'releases'/sha;target.mkdir(parents=True)
+            shared=base/'shared';shared.mkdir();env_file=shared/'.env'
+            secret='sentinel-value-must-stay-private';env_file.write_text(secret)
+            env_file.chmod(0)
+            binary=base/'bin';binary.mkdir();log=base/'docker-calls'
+            docker=binary/'docker';docker.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$TEST_DOCKER_LOG"\nif [ "$1" = inspect ]; then printf "wardrobe-lab:'+('b'*40)+'\\n"; fi\nif [ "$1" = run ]; then chmod 600 "$TEST_ENV_FILE"; fi\nexit 0\n');docker.chmod(0o755)
+            script=base/'deploy.sh';script.write_text((ROOT/'scripts/deploy.sh').read_text().replace('base=/opt/wardrobe-lab',f'base={base}'))
+            env={**os.environ,'PATH':str(binary)+':'+os.environ['PATH'],'TEST_DOCKER_LOG':str(log),'TEST_ENV_FILE':str(env_file)}
+            r=subprocess.run(['bash',str(script),sha],env=env,capture_output=True,text=True)
+            self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+            self.assertEqual(env_file.read_text(),secret)
+            self.assertEqual(env_file.stat().st_mode&0o777,0o600)
+            self.assertNotIn(secret,r.stdout+r.stderr+log.read_text())
+            self.assertIn('--network none --read-only',log.read_text())
+            self.assertIn('dst=/repair.env',log.read_text())
+
     def test_cleanup_preserves_active_unknown_and_shared(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory); releases = base/'releases';releases.mkdir()
