@@ -102,3 +102,12 @@ SQLite新增assets.details字段，启动时兼容添加，保存视频帧率/�
 新增纯JS规则回归、网页名额/模式切换/上传预检、UUID缺失与丢失响应手动幂等重试测试。浏览器验收、部署及公网健康以此提交的GitHub运行结果为准；未进行付费模型调用。服务器现有密码、API Key、开关和历史素材保持原配置。
 
 第二轮c8e0c6c部署前278项全通过，服务更新前被shared/.env permission denied阻断；公网旧服务健康。部署脚本增加定向权限恢复：仅在配置不可读时，使用当前运行的已安装wardrobe-lab SHA镜像、无网络、文件系统只读及单文件bind挂载，恢复该文件归属为部署账号及600权限；拒绝符号链接/未知镜像，不读取或输出内容、不拉取镜像。密码和Key值不变。此项用于兼容root编辑/重置配置后的所有权变化。
+
+
+## 输入联动修复最终上线与部署耗时复核（2026-10-01，上海时间）
+
+运行代码a1b213cb907b7bbf3bafc8c94f7dc0a7c0741c80已部署成功。CI运行36747567024通过：268项后端/契约/前端规则包装检查、5项部署保护检查、6项浏览器验收；部署运行36747566974全套279项通过，日志确认配置定向权限恢复、Deployment healthy以及公网healthz HTTP200。公网/static/app.js与/static/input-rules.js独立下载校验，SHA256与当前源码完全一致。密码、Key、历史素材内容未改动，无付费模型调用。
+
+最近失败须分开归因：97187版本1项网页测试发现外部素材类型默认值问题，后续已修；c8e0与c63部署均在服务器Compose读取shared/.env时permission denied，属于配置文件访问权限，不是网络失败。当前成功运行628KiB源码上传阶段（含远程建目录及解压）约76秒，服务器构建、启动及健康确认约45秒；执行器准备与测试约100秒，另有串行部署排队等待。不能把失败统一归因为GitHub与国内服务器的跨境网络，也不能把整个阶段时间视为纯上传带宽测量。
+
+下一阶段建议（尚未迁移）：GitHub继续保存代码和执行完整测试，腾讯轻量云运行仓库专用self-hosted runner，测试成功后在服务器本地完成部署。可去掉GitHub执行器向服务器的SSH上传及动态源IP登录，复用服务器构建缓存。此方案仍需腾讯服务器通过HTTPS连接GitHub和下载源码，应先按GitHub官方域名要求测连通性及下载速度，再注册runner、切换部署任务；原SSH路径在新路径验收前保留。测试任务继续在GitHub执行，服务器runner仅接受受信main分支部署，避免额外浏览器测试占用应用资源。普通Cloudflare网页代理不支持SSH22，Tunnel/Spectrum改变连接路径也不保证提速，暂不作为首选加速方案。资料：https://docs.github.com/en/actions/reference/runners/self-hosted-runners 与 https://developers.cloudflare.com/fundamentals/reference/network-ports/ 。
