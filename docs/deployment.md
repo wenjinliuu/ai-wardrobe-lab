@@ -52,7 +52,7 @@ SSH公钥放进部署用户的 `~/.ssh/authorized_keys`，私钥只放GitHub Sec
 
 仓库 Actions → **Deploy to Tencent Lighthouse** → Run workflow → main。
 
-常规部署手动触发。此次修复暂时允许部署工作流文件的main提交自动触发，以完成已授权的首次验证；验证后移除此触发。流程先执行测试，核对SSH及部署锁，仅传源码包，清理三个已知失败上传目录，再在服务器构建并启动服务。SSH每15秒保活，服务器构建与部署限时15分钟。日志保存在release的deploy.log；工作流最后从公网检查/healthz。
+常规部署手动触发；首次修复已自动执行，临时push触发已移除。流程先执行测试，核对SSH及部署锁，仅传源码包，清理三个已知失败上传目录，再在服务器构建并启动服务。SSH每15秒保活，服务器构建与部署限时15分钟。日志保存在release的deploy.log；工作流最后从公网检查/healthz。
 
 `cleanup-old-uploads.py`仅检查c8121eff、905f2bf、571d6575三个已知失败版本，保护current链接及现有Compose容器关联的版本；部署锁被占用时中止清理。shared/.env、数据、SSH授权、其他版本和Docker缓存不清理。未新增镜像仓库或凭证。
 
@@ -85,3 +85,9 @@ docker compose --env-file /opt/wardrobe-lab/shared/.env -p wardrobe-lab logs --t
 ## 历史故障与排查
 
 见[network-diagnosis.md](network-diagnosis.md)。最初在服务器下载Debian官方源很慢，等待期间SSH Broken pipe/255；后来整包上传也只有约24KiB/s。三种SSH传输对照都慢，而腾讯软件源约4.3MiB/s。因此移除整包上传和预加载镜像包流程，回到只传代码并使用腾讯软件源，保留SSH保活。诊断工具仍可手动运行，不会部署应用或安装依赖。
+
+## 实际验证结果 · 2026-09-30 18:18
+
+运行[36700842865](https://github.com/wenjinliuu/ai-wardrobe-lab/actions/runs/36700842865)已完成源码上传、清理、腾讯源构建和服务启动：133MB系统依赖31秒下载，Python依赖约6秒安装；app healthy，current指向bafbe56da079470147e5d64ede5da5e7a7fc481c。已删除三个旧失败版本目录，共35,379,398字节；没有改动shared数据、.env或SSH授权。
+
+工作流最终标记失败，因为公网HTTP检查curl退出28（80端口连接超时），不能据此把成功的服务器构建称为失败。独立检查[36701537823](https://github.com/wenjinliuu/ai-wardrobe-lab/actions/runs/36701537823)确认本机Caddy /healthz返回200，80/443绑定全部地址，app健康；外部80仍超时。需先核对腾讯实例防火墙TCP80规则，再核对主机防火墙或网络策略，不能直接假定具体拦截方。页面地址http://175.24.203.84，当前LIVE未启用。待公网可达后做服务器实际登录与模拟生成验收。
