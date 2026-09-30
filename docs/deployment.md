@@ -1,10 +1,10 @@
 # 腾讯轻量云部署
 
-代码已提供部署配置，但没有连接你的实例。建议 Ubuntu Server 24.04 LTS 64位；已有数据的实例不要直接重装。公网建议使用有条件部署的域名和HTTPS，国内实例使用域名时先确认备案和腾讯接入条件。
+已连接实例并完成网络对照诊断；采用源码上传、服务器构建。建议 Ubuntu Server 24.04 LTS 64位；已有数据的实例不要直接重装。公网建议使用有条件部署的域名和HTTPS，国内实例使用域名时先确认备案和腾讯接入条件。
 
 ## 1. 服务器准备
 
-安装 Docker Engine 与 Compose 插件，参考 [Docker 官方 Ubuntu 安装说明](https://docs.docker.com/engine/install/ubuntu/)。自动部署在 GitHub runner 构建应用镜像并下载 Caddy，再经 SSH 传输镜像包；服务器只需能够接收 SSH 连接并运行 Docker，无需下载 Debian/PyPI 依赖。手动在服务器构建时仍需这些外网下载能力。
+安装 Docker Engine 与 Compose 插件，参考 [Docker 官方 Ubuntu 安装说明](https://docs.docker.com/engine/install/ubuntu/)。GitHub只上传源码；轻量云Docker构建内使用腾讯Debian及PyPI软件源，保留TLS和包签名校验。基础Python镜像和Caddy继续使用服务器现有Docker镜像配置。CI构建默认使用官方源，腾讯源由服务器部署脚本显式开启。
 
 创建部署用户、项目目录与单独的数据目录：
 
@@ -52,7 +52,9 @@ SSH公钥放进部署用户的 `~/.ssh/authorized_keys`，私钥只放GitHub Sec
 
 仓库 Actions → **Deploy to Tencent Lighthouse** → Run workflow → main。
 
-当前部署是手动触发，推送代码仅自动运行CI。待首次验收和凭证配置完成，再考虑增加main推送自动部署。流程先跑后端测试并检查SSH及服务器部署锁，再在GitHub构建镜像，打包当前提交与应用/Caddy镜像，通过SSH/SCP放入 `/opt/wardrobe-lab/releases/提交SHA`。核验镜像包SHA256后，执行 `scripts/deploy.sh 提交SHA --prebuilt`，加载镜像并禁止部署时拉取镜像。SSH每15秒发送保活，连接失败有20秒超时；上传、构建和部署分为独立步骤。服务更新过程日志保存在release的 `deploy.log`，远程部署最长10分钟。镜像包成功部署后删除，加载后的镜像保留供回退。
+常规部署手动触发。此次修复暂时允许部署工作流文件的main提交自动触发，以完成已授权的首次验证；验证后移除此触发。流程先执行测试，核对SSH及部署锁，仅传源码包，清理三个已知失败上传目录，再在服务器构建并启动服务。SSH每15秒保活，服务器构建与部署限时15分钟。日志保存在release的deploy.log；工作流最后从公网检查/healthz。
+
+`cleanup-old-uploads.py`仅检查c8121eff、905f2bf、571d6575三个已知失败版本，保护current链接及现有Compose容器关联的版本；部署锁被占用时中止清理。shared/.env、数据、SSH授权、其他版本和Docker缓存不清理。未新增镜像仓库或凭证。
 
 镜像使用提交SHA命名，环境与数据存放在shared目录。Docker构建成功后更新服务，健康检查通过才更新current链接；失败时恢复上一release和对应镜像。第一版没有上一版本时需根据日志修复后重部署。当前数据库结构仅使用CREATE IF NOT EXISTS；未来涉及不可逆数据库迁移时，需要另加备份与兼容迁移方案，不能依赖代码回退恢复数据库。
 
@@ -80,12 +82,6 @@ docker compose --env-file /opt/wardrobe-lab/shared/.env -p wardrobe-lab logs --t
 
 当前实现并验证的是SSH部署脚本结构，实际服务器部署待配置。TAT是后续替换部署传输的候选：Actions发布安装包到受控存储，腾讯TAT下发固定下载/部署命令，再查询执行状态。需要配置TAT客户端、最小权限CAM凭证及安装包下载渠道。不要把未实现的TAT或MCP接入描述为已完成；它们不影响本项目AI生成工作流。
 
-## SSH 255 与重复部署
+## 历史故障与排查
 
-2026-09-30 日志中 SSH 已成功认证、上传并执行服务器 Docker 构建；Debian Packages 下载长时间没有输出后出现 `client_loop: send disconnect: Broken pipe` / exit 255。它证明连接在运行中断开，单凭该日志不能确定是网络空闲超时、云安全中断还是服务器状态异常。随后两个任务提示 `Another deployment is running`，证明当时部署锁仍被占用。
-
-先不要重复运行旧提交。新版改为GitHub构建和SSH保活；必须从main启动新任务，Re-run旧任务仍执行旧代码。若新任务检查提示锁被占用，在腾讯网页终端执行 `sudo lslocks -o PID,COMMAND,PATH` 以及 `sudo ps -eo pid,ppid,etime,args | rg 'deploy.sh|docker compose|apt-get'`（没有rg可用grep），检查持锁进程。不要删除deploy.lock文件或盲目杀进程；先确认旧部署已停止。异常登录告警本身不能证明登录被拦截，应结合事件状态及服务器SSH日志判断。
-
-## 上传无输出或超时
-
-镜像上传每30秒报告远端文件字节数、百分比、平均KiB/s和用时。连续180秒文件无增长时停止，不启动服务；上传步骤最多25分钟。开始与失败时输出磁盘使用情况，失败时保留并显示部分镜像包大小。若持续有增长但太慢，以记录的速度判断是否更换传输渠道；若无增长，检查连接和磁盘错误，不能仅凭异常登录告警判定拦截。当前没有自动重试或断点续传。
+见[network-diagnosis.md](network-diagnosis.md)。最初在服务器下载Debian官方源很慢，等待期间SSH Broken pipe/255；后来整包上传也只有约24KiB/s。三种SSH传输对照都慢，而腾讯软件源约4.3MiB/s。因此移除整包上传和预加载镜像包流程，回到只传代码并使用腾讯软件源，保留SSH保活。诊断工具仍可手动运行，不会部署应用或安装依赖。

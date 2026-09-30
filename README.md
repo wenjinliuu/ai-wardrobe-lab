@@ -48,7 +48,7 @@ python -m pytest tests/test_ui.py -q
 
 ## 部署到腾讯轻量云
 
-使用 Ubuntu Server 24.04 LTS、Docker Compose 和 Caddy。完整步骤、GitHub Secrets、域名/HTTPS、首次启动和回退说明见 [docs/deployment.md](docs/deployment.md)。目前仅准备部署流程，尚未连接或修改你的服务器。
+使用 Ubuntu Server 24.04 LTS、Docker Compose 和 Caddy。完整步骤、GitHub Secrets、域名/HTTPS、首次启动和回退说明见 [docs/deployment.md](docs/deployment.md)。已验证SSH与网络路径；部署采用源码上传、轻量云本地构建和腾讯软件源。首次服务上线仍以工作流健康检查为准。
 
 ## 设计与边界
 

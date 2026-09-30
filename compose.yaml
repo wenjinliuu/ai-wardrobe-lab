@@ -1,7 +1,10 @@
 services:
   app:
     image: ${LAB_APP_IMAGE:-wardrobe-lab:local}
-    build: .
+    build:
+      context: .
+      args:
+        LAB_USE_TENCENT_MIRRORS: ${LAB_USE_TENCENT_MIRRORS:-false}
     restart: unless-stopped
     env_file: ${LAB_ENV_FILE:-.env}
     environment:

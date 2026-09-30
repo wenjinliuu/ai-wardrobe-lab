@@ -1,9 +1,16 @@
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 LAB_DATA_DIR=/data
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates && rm -rf /var/lib/apt/lists/* && useradd -u 10001 -m lab
+# CI uses official sources; Lighthouse passes the measured Tencent mirror.
+ARG LAB_USE_TENCENT_MIRRORS=false
+RUN if [ "$LAB_USE_TENCENT_MIRRORS" = "true" ]; then \
+      python -c "from pathlib import Path; p=Path('/etc/apt/sources.list.d/debian.sources'); s=p.read_text(); s=s.replace('http://deb.debian.org/debian-security','https://mirrors.cloud.tencent.com/debian-security').replace('https://deb.debian.org/debian-security','https://mirrors.cloud.tencent.com/debian-security').replace('http://deb.debian.org/debian','https://mirrors.cloud.tencent.com/debian').replace('https://deb.debian.org/debian','https://mirrors.cloud.tencent.com/debian'); p.write_text(s)"; \
+    elif [ "$LAB_USE_TENCENT_MIRRORS" != "false" ]; then exit 1; fi
+RUN apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update && apt-get install -y --no-install-recommends ffmpeg ca-certificates && rm -rf /var/lib/apt/lists/* && useradd -u 10001 -m lab
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN if [ "$LAB_USE_TENCENT_MIRRORS" = "true" ]; then \
+      pip install --no-cache-dir --timeout 30 --retries 2 --index-url https://mirrors.cloud.tencent.com/pypi/simple -r requirements.txt; \
+    else pip install --no-cache-dir -r requirements.txt; fi
 COPY app ./app
 COPY config ./config
 COPY web ./web

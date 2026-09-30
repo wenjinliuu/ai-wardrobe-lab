@@ -1,6 +1,10 @@
 name: Deploy to Tencent Lighthouse
 on:
   workflow_dispatch:
+  # One-time repair trigger; removed after server verification.
+  push:
+    branches: [main]
+    paths: ['.github/workflows/deploy.yml']
 permissions:
   contents: read
 concurrency:
@@ -17,7 +21,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - run: pip install -r requirements-dev.txt && python -m pytest tests/test_backend.py -q
+      - run: pip install -r requirements-dev.txt && python -m pytest tests/test_backend.py -q && python -m unittest discover -s tests -p test_deployment.py
       - name: Configure verified SSH identity
         env:
           SSH_PRIVATE_KEY: ${{ secrets.LIGHTHOUSE_SSH_KEY }}
@@ -39,37 +43,33 @@ jobs:
       - name: Verify server access and deployment lock
         run: |
           ssh lighthouse 'set -eu; docker version --format "{{.Server.Version}}"; test -f /opt/wardrobe-lab/shared/.env; flock -n /opt/wardrobe-lab/deploy.lock -c true || { echo "An earlier deployment still holds the server lock; inspect it before retrying."; exit 1; }'
-      - name: Build release images on GitHub
-        timeout-minutes: 15
-        run: |
-          set -euo pipefail
-          docker build --progress=plain -t "wardrobe-lab:$GITHUB_SHA" .
-          docker pull caddy:2-alpine
-          docker save "wardrobe-lab:$GITHUB_SHA" caddy:2-alpine | gzip -1 > "$RUNNER_TEMP/images.tar.gz"
-          sha256sum "$RUNNER_TEMP/images.tar.gz"
-      - name: Upload source and image bundle
-        timeout-minutes: 25
+      - name: Upload source only
+        timeout-minutes: 5
         run: |
           set -euo pipefail
           archive="$RUNNER_TEMP/source.tar.gz"
           git archive --format=tar.gz --output="$archive" HEAD
+          du -h "$archive"
           ssh lighthouse "mkdir -p /opt/wardrobe-lab/releases/$GITHUB_SHA"
-          echo "Uploading source archive"
           scp "$archive" "lighthouse:/opt/wardrobe-lab/releases/$GITHUB_SHA/"
-          echo "Source upload completed; starting image transfer"
-          bash scripts/upload-images.sh "$RUNNER_TEMP/images.tar.gz" "$GITHUB_SHA"
-          digest=$(sha256sum "$RUNNER_TEMP/images.tar.gz" | cut -d ' ' -f 1)
-          ssh lighthouse "cd /opt/wardrobe-lab/releases/$GITHUB_SHA && echo '$digest  images.tar.gz' | sha256sum -c - && tar -xzf source.tar.gz"
-      - name: Load images and deploy without dependency downloads
-        timeout-minutes: 12
+          ssh lighthouse "cd /opt/wardrobe-lab/releases/$GITHUB_SHA && tar -xzf source.tar.gz"
+      - name: Remove known failed uploads safely
+        timeout-minutes: 2
+        run: ssh lighthouse "cd /opt/wardrobe-lab/releases/$GITHUB_SHA && python3 scripts/cleanup-old-uploads.py"
+      - name: Build with Tencent mirrors and deploy
+        timeout-minutes: 17
         run: |
           set -euo pipefail
-          ssh lighthouse "cd /opt/wardrobe-lab/releases/$GITHUB_SHA && bash -o pipefail -c 'timeout 10m bash scripts/deploy.sh $GITHUB_SHA --prebuilt 2>&1 | tee deploy.log'"
+          ssh lighthouse "cd /opt/wardrobe-lab/releases/$GITHUB_SHA && bash -o pipefail -c 'timeout 15m bash scripts/deploy.sh $GITHUB_SHA 2>&1 | tee deploy.log'"
+      - name: Verify public HTTP health
+        env:
+          SSH_HOST: ${{ secrets.LIGHTHOUSE_HOST }}
+        run: curl --fail --connect-timeout 10 --max-time 20 "http://$SSH_HOST/healthz"
       - name: Collect persistent deployment log on failure
         if: failure()
         continue-on-error: true
         run: |
-          ssh lighthouse "df -h /opt/wardrobe-lab; ls -lh /opt/wardrobe-lab/releases/$GITHUB_SHA/images.tar.gz 2>/dev/null || true; test ! -f /opt/wardrobe-lab/releases/$GITHUB_SHA/deploy.log || tail -n 100 /opt/wardrobe-lab/releases/$GITHUB_SHA/deploy.log"
+          ssh lighthouse "df -h /opt/wardrobe-lab; test ! -f /opt/wardrobe-lab/releases/$GITHUB_SHA/deploy.log || tail -n 100 /opt/wardrobe-lab/releases/$GITHUB_SHA/deploy.log"
       - name: Remove temporary private key
         if: always()
         run: rm -f ~/.ssh/lighthouse ~/.ssh/config
