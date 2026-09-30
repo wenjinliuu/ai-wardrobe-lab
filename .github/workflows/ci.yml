@@ -21,8 +21,8 @@ jobs:
           node-version: '24'
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pip install -r requirements-dev.txt
-      - run: node --check web/app.js && python -m compileall -q app
-      - run: python -m pytest tests/test_backend.py tests/test_contracts.py -q
+      - run: node --check web/app.js && node --check web/input-rules.js && python -m compileall -q app
+      - run: python -m pytest tests/test_backend.py tests/test_contracts.py tests/test_frontend_rules.py -q
       - run: python -m unittest discover -s tests -p test_deployment.py
       - run: playwright install --with-deps chromium
       - run: python -m pytest tests/test_ui.py -q

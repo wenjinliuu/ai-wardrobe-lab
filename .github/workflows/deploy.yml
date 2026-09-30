@@ -22,7 +22,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pip install -r requirements-dev.txt
       - run: playwright install --with-deps chromium
-      - run: python -m pytest tests -q && node --check web/app.js && bash -n scripts/deploy.sh
+      - run: python -m pytest tests -q && node --check web/app.js && node --check web/input-rules.js && bash -n scripts/deploy.sh
       - name: Configure verified SSH identity
         env:
           SSH_PRIVATE_KEY: ${{ secrets.LIGHTHOUSE_SSH_KEY }}

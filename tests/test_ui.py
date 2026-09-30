@@ -92,3 +92,95 @@ def test_model_modes_and_material_entries(browser,server):
     assert page.locator('#f-video_mode option[value="reference"]').count()==0
     assert not errors
     page.close()
+
+def test_first_frame_slots_and_mode_switch(browser,server):
+    page=browser.new_page(viewport={'width':1440,'height':1100})
+    page.goto(server);expect(page.locator('main h1')).to_be_visible()
+    page.locator('[data-kind="video"]').click()
+    page.locator('#f-model_id').select_option('tx-minimax-video-h3-max')
+    def add_image(number):
+        page.locator('[data-action="external"]').click()
+        expect(page.locator('[name="vendor_kind"] option')).to_have_count(1)
+        page.locator('[name="value"]').fill(f'https://materials.example.com/frame{number}.png')
+        page.locator('#external-form button[type="submit"]').click()
+    add_image(1)
+    expect(page.locator('[data-ref-key="usage"]')).to_have_value('first_frame')
+    expect(page.locator('[data-action="external"]')).to_be_disabled()
+    expect(page.locator('[data-action="picker"]')).to_be_disabled()
+    page.locator('#f-video_mode').select_option('first_last')
+    expect(page.locator('[data-action="generate"]')).to_be_disabled()
+    page.locator('[data-action="picker"]').click()
+    assert not page.locator('#upload-input').evaluate('(e)=>e.multiple')
+    page.locator('[data-close]').first.click()
+    add_image(2)
+    assert page.locator('[data-ref-key="usage"]').evaluate_all('(es)=>es.map(e=>e.value)')==['first_frame','last_frame']
+    expect(page.locator('[data-action="external"]')).to_be_disabled()
+    page.locator('#f-video_mode').select_option('first_frame')
+    expect(page.locator('.ref')).to_have_count(2)
+    expect(page.locator('.ref-invalid')).to_have_count(1)
+    expect(page.locator('[data-action="generate"]')).to_be_disabled()
+    page.locator('[data-remove-ref="1"]').click()
+    expect(page.locator('[data-action="generate"]')).to_be_enabled()
+    page.locator('#f-video_mode').select_option('text')
+    expect(page.locator('.ref')).to_have_count(1)
+    expect(page.locator('[data-action="generate"]')).to_be_disabled()
+    page.locator('[data-remove-ref]').click()
+    expect(page.locator('[data-action="generate"]')).to_be_enabled()
+    assert 'adaptive' not in page.locator('#f-ratio option').evaluate_all('(es)=>es.map(e=>e.value)')
+    # Both official catalogs remain available despite not configuring their Keys.
+    assert page.locator('#f-model_id option[value^="native-vidu"]').count()>0
+    assert page.locator('#f-model_id option[value^="native-kling"]').count()>0
+    page.screenshot(path='test-results/frame-slots.png',full_page=True)
+    page.close()
+
+def test_upload_batch_rejected_before_upload(browser,server):
+    page=browser.new_page()
+    page.goto(server);expect(page.locator('main h1')).to_be_visible()
+    page.locator('[data-kind="video"]').click()
+    page.locator('#f-model_id').select_option('tx-minimax-video-h3-max')
+    uploads=[]
+    page.on('request',lambda r:uploads.append(r.url) if r.method=='POST' and r.url.endswith('/api/assets') else None)
+    page.evaluate("uploadFiles([new File(['x'],'a.png'),new File(['y'],'b.png')])")
+    expect(page.locator('#toasts')).to_contain_text('名额已满')
+    expect(page.locator('.ref')).to_have_count(0)
+    assert not uploads
+    page.locator('#f-model_id').select_option('wan-animate')
+    page.locator('[data-action="external"]').click()
+    assert page.locator('[name="vendor_kind"] option').evaluate_all('(es)=>es.map(e=>e.value)')==['image','video']
+    page.locator('[name="vendor_kind"]').select_option('video')
+    page.locator('[name="value"]').fill('https://materials.example.com/motion.mp4')
+    page.locator('#external-form button[type="submit"]').click()
+    expect(page.locator('#toasts')).to_contain_text('实际时长')
+    expect(page.locator('dialog')).to_be_visible()
+    page.locator('[name="duration"]').fill('5')
+    page.locator('#external-form button[type="submit"]').click()
+    expect(page.locator('[data-ref-key="usage"]')).to_have_value('driving_video')
+    expect(page.locator('[data-action="generate"]')).to_be_disabled()
+    page.close()
+
+def test_http_uuid_fallback_and_explicit_retry_keeps_id(browser,server):
+    page=browser.new_page()
+    page.add_init_script("Object.defineProperty(Crypto.prototype,'randomUUID',{value:undefined,configurable:true})")
+    page.goto(server);expect(page.locator('main h1')).to_be_visible()
+    page.locator('[data-action="demo"]').click();expect(page.locator('.ref')).to_have_count(3)
+    page.locator('#f-label').fill('uuid-idempotency-check')
+    keys=[]
+    def lose_first_response(route):
+        keys.append(route.request.headers['idempotency-key'])
+        response=route.fetch()
+        if len(keys)==1:route.abort('failed')
+        else:route.fulfill(response=response)
+    page.route('**/api/jobs',lambda route:lose_first_response(route) if route.request.method=='POST' else route.continue_())
+    page.locator('[data-action="generate"]').click()
+    expect(page.locator('[data-action="generate"]')).to_be_enabled()
+    expect(page.locator('#toasts')).to_contain_text('Failed to fetch')
+    # No automatic repeat occurs; retry is an explicit second click.
+    assert len(keys)==1
+    page.locator('[data-action="generate"]').click()
+    expect(page.locator('#preview-mode')).to_contain_text('已保存',timeout=15000)
+    assert len(keys)==2 and keys[0]==keys[1]
+    import re
+    assert re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}',keys[0])
+    records=page.evaluate("fetch('/api/jobs').then(r=>r.json())")
+    assert len([j for j in records if j['body']['label']=='uuid-idempotency-check'])==1
+    page.close()
