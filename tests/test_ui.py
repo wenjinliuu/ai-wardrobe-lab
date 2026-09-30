@@ -83,6 +83,7 @@ def test_model_modes_and_material_entries(browser,server):
         page.locator('#f-model_id').select_option(mid);page.locator('#f-video_mode').select_option(mode)
         expect(page.locator('.capability-panel')).to_be_visible()
         page.locator('[data-action="external"]').click()
+        page.locator('#external-form [name="vendor_kind"]').select_option('image')
         page.locator('#external-form [name="value"]').fill('https://materials.example.com/person.png')
         page.locator('#external-form button[type="submit"]').click();expect(page.locator('.ref')).to_have_count(1)
         assert page.locator('[data-ref-key="usage"] option').count()>=2
