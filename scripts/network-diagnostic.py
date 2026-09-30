@@ -146,13 +146,26 @@ def run(output, domestic=False):
         emit({'report_saved': str(output)})
 
 
+def service_checks(output):
+    remote = "docker ps --filter label=com.docker.compose.project=wardrobe-lab --format '{{.Names}} {{.Status}} {{.Ports}}'; ss -lnt; python3 -c \"import urllib.request; r=urllib.request.urlopen('http://127.0.0.1/healthz',timeout=5); print('LOCAL_CADDY_HTTP',r.status,r.read().decode())\""
+    results = {'server_service': ssh(remote, timeout=25)}
+    host = os.environ.get('DIAGNOSTIC_HOST', '')
+    if host and all(c.isalnum() or c in '.-' for c in host):
+        results['public_http'] = command(['curl','--fail','--connect-timeout','10','--max-time','20','http://'+host+'/healthz'],timeout=25)
+    Path(output).write_text(json.dumps(results,ensure_ascii=False,indent=2))
+    emit(results)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--downloads', action='store_true')
     parser.add_argument('--domestic', action='store_true')
+    parser.add_argument('--service', action='store_true')
     parser.add_argument('--output', default='network-diagnostic.json')
     args = parser.parse_args()
-    if args.downloads:
+    if args.service:
+        service_checks(args.output)
+    elif args.downloads:
         download_checks(args.domestic)
     else:
         run(args.output, args.domestic)

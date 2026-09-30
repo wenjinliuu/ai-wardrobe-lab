@@ -1,10 +1,6 @@
 name: Deploy to Tencent Lighthouse
 on:
   workflow_dispatch:
-  # One-time repair trigger; removed after server verification.
-  push:
-    branches: [main]
-    paths: ['.github/workflows/deploy.yml']
 permissions:
   contents: read
 concurrency:

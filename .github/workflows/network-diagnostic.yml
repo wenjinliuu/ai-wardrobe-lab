@@ -36,8 +36,10 @@ jobs:
           chmod 600 ~/.ssh/lighthouse ~/.ssh/known_hosts
           printf '%s\n' 'Host diagnostic' "  HostName $SSH_HOST" "  User $SSH_USER" "  Port ${SSH_PORT:-22}" '  IdentityFile ~/.ssh/lighthouse' '  IdentitiesOnly yes' '  BatchMode yes' '  StrictHostKeyChecking yes' '  ConnectTimeout 15' '  ServerAliveInterval 15' '  ServerAliveCountMax 3' > ~/.ssh/config
           chmod 600 ~/.ssh/config
-      - name: Compare transfer protocols and server dependency downloads
-        run: python3 -u scripts/network-diagnostic.py --domestic --output network-diagnostic.json
+      - name: Inspect service listener and local/public HTTP
+        env:
+          DIAGNOSTIC_HOST: ${{ secrets.LIGHTHOUSE_HOST }}
+        run: python3 -u scripts/network-diagnostic.py --service --output network-diagnostic.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
