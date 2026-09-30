@@ -25,85 +25,15 @@ def template(id,version):
     return json.loads(row["body"])
 
 def validate(b):
-    m=catalog.model(b["model_id"])
-    t=template(b["template_id"],b["template_version"])
-    if t["kind"]!=b["kind"] or (m["kind"]=="image")!=(b["kind"]=="image"):
-        raise ValueError("模板、模型与生成类型不匹配")
-    if not b["refs"] or len(b["refs"])>12:raise ValueError("请提供1～12个素材引用")
-    if len({r["asset_id"] for r in b["refs"]})!=len(b["refs"]):raise ValueError("同一张素材不能重复引用，请明确唯一角色")
-    roles=[r["role"] for r in b["refs"]]
-    for r in b["refs"]:
-        if r["role"] not in catalog.ROLES:raise ValueError("未知素材角色")
-        a=db.get_asset(r["asset_id"])
-        expected="video" if r["role"]=="motion" else "image"
-        if a["kind"]!=expected:raise ValueError("动作需要视频，其余角色需要图片")
-        if expected=="image":
-            if a["width"]<m["min_side"] or a["height"]<m["min_side"] or max(a["width"],a["height"])>m["max_side"] or a["size"]>m["max_mb"]*1024*1024:raise ValueError(f"{a['name']}不符合模型尺寸或大小限制")
-            if m["adapter"] in {"kling","kling_motion","h3"} and not .4<=a["width"]/a["height"]<=2.5:raise ValueError("该模型要求图片宽高比在0.4～2.5之间")
-        else:
-            if not m.get("video_min") or not m["video_min"]<=a["duration"]<=m["video_max"]:raise ValueError("动作视频时长不符合该模型要求")
-            if a["size"]>m["video_mb"]*1024*1024 or min(a["width"],a["height"])<m["video_side_min"] or max(a["width"],a["height"])>m["video_side_max"]:raise ValueError("动作视频尺寸或大小超出限制")
-    if "identity" in roles and not b["identity_consent"]:raise ValueError("本人参考需要明确确认素材授权")
-    if b["kind"]=="image":
-        if b["person_mode"]=="self" and "identity" not in roles:
-            raise ValueError("本人模式需要人物参考图；不使用自拍请选择默认模特")
-        if any(r in roles for r in ("motion","look")):raise ValueError("生图请使用人物、姿势和衣服参考，不使用动作或完整Look角色")
-        if t["category"]=="garment_present" and len(roles)!=1:raise ValueError("商品图整理请只选择一件衣物")
-        if t["category"]=="outfit_image" and not any(r in roles for r in ("upper","lower","shoes")):raise ValueError("穿搭图至少需要一件服装参考")
-    else:
-        if roles.count("look")!=1:raise ValueError("视频必须选择一张完整穿搭图")
-        if not b["image_confirmed"]:raise ValueError("请先确认穿搭图，再生成视频")
-        a=db.get_asset(next(r["asset_id"] for r in b["refs"] if r["role"]=="look"))
-        parent=db.get_job(a["source"])
-        if parent:
-            review=json.loads(parent["review"] or "{}")
-            if review.get("verdict")!="pass":raise ValueError("生成图需在任务详情中评为合格后才可做视频")
-            if b["mode"]=="live" and json.loads(parent["body"])["mode"]=="mock":raise ValueError("模拟结果不能作为真实视频生成输入")
-        if m["kind"]=="motion" and roles.count("motion")!=1:raise ValueError("动作迁移模型需要一段动作参考视频")
-        if roles.count("motion")>1:raise ValueError("首版每次只支持一段动作参考")
-        if m["adapter"] not in ("h3",) and m["kind"]!="motion" and "motion" in roles:raise ValueError("当前模型不支持动作参考视频")
-        if m["kind"] in ("video","motion") and any(r not in ("look","motion") for r in roles):raise ValueError("普通视频接口只接收完整穿搭图；其他素材应先合成图片")
-        if m["adapter"]=="h3" and b["video_mode"]=="first_frame" and (len(roles)>1):raise ValueError("H3 首帧与多素材参考模式互斥，请选择参考模式")
-        if m.get("restricted_identity"):
-            inherited=parent and any(r["role"]=="identity" for r in json.loads(parent["body"])["refs"])
-            if b["person_mode"]=="self" or inherited:raise ValueError("Seedance 真人授权资产录入尚未接入，当前仅开放默认模特模式")
-    count=sum(r!="motion" for r in roles)
-    if not b["reference_board"] and count>m["max_images"]:raise ValueError(f"该模型最多接收{m['max_images']}张图片，可换模型或在生图中试验参考板")
-    if b["reference_board"] and b["kind"]!="image":raise ValueError("参考板只能用于图像对照，不能直接作为视频首帧")
-    if b["resolution"] not in m["resolutions"]:raise ValueError("清晰度或服务模式不支持")
-    if m["durations"] and b["duration"] not in m["durations"]:raise ValueError("时长不支持")
-    if b["mode"]=="live":
-        if not config.LIVE or not config.key(m["provider"]):raise ValueError("真实调用未开启或服务器尚未配置该平台Key")
-        if not b["paid_confirmed"]:raise ValueError("请明确确认本次真实付费调用")
-        if b["max_cost"]<=0:raise ValueError("真实调用需填写预算预占金额")
-        if not config.PUBLIC_BASE.startswith("https://") and sum(a["size"] for a in [db.get_asset(r["asset_id"]) for r in b["refs"]])>32*1024*1024:
-            raise ValueError("内联素材合计超过32MB，请配置HTTPS素材地址或减少素材大小")
-        if m["kind"]=="motion" or (m["adapter"]=="h3" and "motion" in roles):
-            u=urlsplit(config.PUBLIC_BASE)
-            if u.scheme!="https" or not u.hostname:raise ValueError("动作视频输入需要部署后的 HTTPS 公网地址")
-    prompt=b["prompt_override"] or t["prompt"]
-    if t.get("negative_prompt"):
-        prompt += "\n避免："+t["negative_prompt"]
-    if m["prompt_max"]:
-        mapping="\n参考顺序："+"；".join(f"图{i+1}={catalog.ROLES[r['role']]}" for i,r in enumerate(b["refs"]) if r["role"]!="motion")
-        if b["reference_board"]:mapping+="。素材在一张参考板内按编号排列；输出应为完整单人照片，不能包含参考板或编号。"
-        b["compiled_prompt"]=prompt+mapping
-        if len(b["compiled_prompt"])>m["prompt_max"]:raise ValueError(f"提示词与角色说明合计超过{m['prompt_max']}字符")
-    else:b["compiled_prompt"]="" # Wan Animate takes only image + motion; no ignored prompt
-    b["template_snapshot"]=t
-    b["model_snapshot"]=m.copy()
-    b["workflow_version"]="1.0.0"
-    b["prompt_version"]=f"{t['id']}@{t['version']}"+("+override" if b["prompt_override"] else "")
-    b["asset_snapshot"]=[{k:db.get_asset(r["asset_id"])[k] for k in ("id","sha256","width","height","duration","size")} | {"role":r["role"]} for r in b["refs"]]
-    return b
+    from .capabilities import validate as check
+    m=catalog.model(b['model_id']);t=template(b['template_id'],b['template_version'])
+    if t['kind']!=b['kind'] or (m['kind']=='image')!=(b['kind']=='image'):raise ValueError('模板、模型与生成类型不匹配')
+    return check(b,m,t)
 
 def estimate(b):
-    m=b["model_snapshot"]
-    rate=m.get("prices",{}).get(b["resolution"])
-    duration=b["duration"]
-    if m["kind"]=="motion":duration=next(a["duration"] for a in b["asset_snapshot"] if a["role"]=="motion")
-    cost=round(rate*duration,4) if rate is not None else None
-    return dict(estimated_cny=0 if b["mode"]=="mock" else cost,reference_cny=cost,price_date=m.get("price_date"),source="官方参考价格" if rate else "待核对账单",note="预算预占仅限制本站新增任务，不是供应商硬性费用上限；实际账单需核对。")
+    from .pricing import estimate as quote
+    return quote(b)
+
 
 def create_job(b,idem):
     # Model/profile/template frozen per job; later switching never changes existing tasks.

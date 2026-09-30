@@ -33,6 +33,9 @@ def init():
         CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT,stage TEXT,message TEXT,created REAL);
         CREATE TABLE IF NOT EXISTS login_attempts(ip TEXT,created REAL);
         """)
+        if 'details' not in {r['name'] for r in db.execute('PRAGMA table_info(assets)')}:
+            db.execute("ALTER TABLE assets ADD COLUMN details TEXT DEFAULT '{}'")
+
 
 def event(job_id, stage, message):
     with connection() as db:

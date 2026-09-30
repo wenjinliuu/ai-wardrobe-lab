@@ -73,3 +73,22 @@ def test_mobile_layout(browser,server):
     page.locator('#menu-toggle').click();page.locator('#nav [data-route="settings"]').click();expect(page.locator('#page-title')).to_have_text('平台连接')
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     page.close()
+
+def test_model_modes_and_material_entries(browser,server):
+    page=browser.new_page(viewport={'width':1440,'height':1100});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(server);expect(page.locator('main h1')).to_be_visible()
+    assert page.locator('#f-model_id option').count()>=20
+    page.locator('[data-kind="video"]').click()
+    for mid,mode in [('wan3.0-video','reference'),('minimax-h3','reference'),('native-MiniMax-H3-Max','reference'),('tx-minimax-video-h3-max','first_last'),('tx-kling-video-v3-omni','edit'),('native-viduq2-pro','subjects'),('seedance','reference')]:
+        page.locator('#f-model_id').select_option(mid);page.locator('#f-video_mode').select_option(mode)
+        expect(page.locator('.capability-panel')).to_be_visible()
+        page.locator('[data-action="external"]').click()
+        page.locator('#external-form [name="value"]').fill('https://materials.example.com/person.png')
+        page.locator('#external-form button[type="submit"]').click();expect(page.locator('.ref')).to_have_count(1)
+        assert page.locator('[data-ref-key="usage"] option').count()>=2
+        if mode=='subjects':expect(page.locator('[data-ref-key="subject_name"]')).to_be_visible()
+        page.locator('[data-remove-ref]').click()
+    page.locator('#f-model_id').select_option('tx-minimax-video-h3-max')
+    assert page.locator('#f-video_mode option[value="reference"]').count()==0
+    assert not errors
+    page.close()

@@ -75,7 +75,7 @@ def logout():
 
 @app.get("/api/bootstrap")
 def bootstrap(token=Depends(require_auth)):
-    return {"csrf":sign("csrf:"+token),"models":catalog.MODELS,"templates":engine.templates(),"roles":catalog.ROLES,"skills":catalog.SKILLS,"live_enabled":config.LIVE,"dev_mode":config.DEV,"daily_budget":config.DAILY_BUDGET,"daily_call_limit":config.DAILY_CALLS,
+    return {"csrf":sign("csrf:"+token),"models":catalog.MODELS,"templates":engine.templates(),"roles":catalog.ROLES,"skills":catalog.SKILLS,"usages":catalog.USAGES,"live_enabled":config.LIVE,"dev_mode":config.DEV,"daily_budget":config.DAILY_BUDGET,"daily_call_limit":config.DAILY_CALLS,
             "providers":[dict(id=k,name=v["name"],base=v["base"],key_env=v["key_env"],configured=bool(config.key(k))) for k,v in config.PROVIDERS.items()]}
 
 def public_asset(a):
@@ -114,33 +114,44 @@ def delete_asset(aid:str):
     with db.connection() as conn:
         for r in conn.execute("SELECT body,outputs FROM jobs"):
             b=json.loads(r["body"])
-            if aid in json.loads(r["outputs"]) or any(x["asset_id"]==aid for x in b["refs"]):raise ValueError("素材已被测试记录引用；请先删除相关任务记录")
+            if aid in json.loads(r["outputs"]) or any(x.get("asset_id")==aid for x in b["refs"]):raise ValueError("素材已被测试记录引用；请先删除相关任务记录")
         conn.execute("DELETE FROM assets WHERE id=?",(aid,))
     (config.DATA/"assets"/a["path"]).unlink(missing_ok=True)
     return {"ok":True}
 
 class Ref(Strict):
-    asset_id:str=Field(pattern=r"^[a-f0-9]{32}$")
+    asset_id:str|None=Field(default=None,pattern=r"^[a-f0-9]{32}$")
     role:str
+    usage:str="auto"
+    vendor_asset_id:str|None=Field(default=None,pattern=r"^[A-Za-z0-9_.:/-]{1,200}$")
+    vendor_kind:Literal["image","video","audio","element","voice","file","link"]="image"
+    url:str|None=Field(default=None,max_length=3000)
+    vendor_active:bool=False
+    trusted_original:bool=False
+    duration:float|None=Field(default=None,ge=0,le=120,allow_inf_nan=False)
+    subject_name:str=Field(default="",max_length=50,pattern=r"^[\w -]*$")
+    voice_url:str=Field(default="",max_length=3000)
+    voice_id:str=Field(default="",max_length=100,pattern=r"^[A-Za-z0-9_.:-]*$")
 
 class JobInput(Strict):
     kind:Literal["image","video"]="image"
     model_id:str
     template_id:str
     template_version:int=Field(ge=1)
-    refs:list[Ref]=Field(min_length=1,max_length=12)
+    refs:list[Ref]=Field(default_factory=list,max_length=50)
     mode:Literal["mock","live"]="mock"
     resolution:str
     duration:int=Field(default=3,ge=1,le=30)
-    ratio:Literal["16:9","9:16","1:1","3:4"]="9:16"
+    ratio:str="9:16"
     seed:int=Field(default=42,ge=0,le=2147483647)
-    prompt_override:str=Field(default="",max_length=4000)
+    prompt_override:str=Field(default="",max_length=20000)
     person_mode:Literal["default","self"]="default"
     identity_consent:bool=False
     image_confirmed:bool=False
     paid_confirmed:bool=False
     reference_board:bool=False
-    video_mode:Literal["first_frame","reference"]="first_frame"
+    video_mode:str="auto"
+    audio_mode:Literal["off","native","original"]="off"
     max_cost:float=Field(default=3,ge=0,le=1000,allow_inf_nan=False)
     label:str=Field(default="",max_length=100)
     group:str=Field(default="",max_length=100)

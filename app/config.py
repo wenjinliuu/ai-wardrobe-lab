@@ -17,6 +17,8 @@ PROVIDERS = {
     "ark": {"name": "火山方舟", "base": os.getenv("ARK_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3"), "key_env": "ARK_API_KEY"},
     "dashscope": {"name": "阿里百炼", "base": os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com"), "key_env": "DASHSCOPE_API_KEY"},
     "tokenhub": {"name": "腾讯 TokenHub", "base": "https://tokenhub.tencentmaas.com", "key_env": "TOKENHUB_API_KEY"},
+    "minimax": {"name":"MiniMax 原厂国内", "base":"https://api.minimax.cn", "key_env":"MINIMAX_API_KEY"},
+    "kling": {"name":"可灵原厂国内", "base":"https://api-beijing.klingai.com", "key_env":"KLING_API_KEY"},
     "vidu": {"name": "Vidu 国内", "base": "https://api.vidu.cn", "key_env": "VIDU_API_KEY"},
 }
 
@@ -31,6 +33,7 @@ def validate_config():
         u = urlsplit(provider["base"])
         valid = {"ark": u.hostname == "ark.cn-beijing.volces.com",
                  "dashscope": u.hostname == "dashscope.aliyuncs.com" or (u.hostname or "").endswith(".cn-beijing.maas.aliyuncs.com"),
+                 "minimax": u.hostname == "api.minimax.cn", "kling": u.hostname == "api-beijing.klingai.com",
                  "tokenhub": u.hostname == "tokenhub.tencentmaas.com", "vidu": u.hostname == "api.vidu.cn"}[name]
         if u.scheme != "https" or not valid or u.username or u.password or u.query or u.fragment or u.port not in (None,443):
             raise RuntimeError("只允许已核对的国内官方 API 域名")

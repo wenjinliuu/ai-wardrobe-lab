@@ -3,6 +3,8 @@ import io
 import json
 import subprocess
 import uuid
+import zipfile
+import mimetypes
 from pathlib import Path
 from PIL import Image, ImageOps, ImageDraw
 import httpx
@@ -25,13 +27,40 @@ def save_bytes(content, name, source="upload", expected=None):
     if not content or len(content)>MAX_FILE:
         raise ValueError("文件为空或超过200MB")
     aid=uuid.uuid4().hex
-    duration=None
-    if content[4:8]==b"ftyp":
+    duration=None;details={};width=height=None
+    suffix=Path(name).suffix.lower()
+    if suffix in ('.mp3','.wav'):
+        kind,mime,ext='audio',('audio/mpeg' if suffix=='.mp3' else 'audio/wav'),suffix
+        path=config.DATA/'assets'/(aid+ext);path.write_bytes(content)
+        try:
+            probed=subprocess.run(['ffprobe','-v','error','-show_format','-show_streams','-of','json',str(path)],capture_output=True,timeout=20,check=True)
+            media=json.loads(probed.stdout);stream=next(x for x in media['streams'] if x['codec_type']=='audio')
+            if stream['codec_name'] not in ('mp3','pcm_s16le','pcm_s24le','pcm_f32le'):raise ValueError('音频请使用MP3或PCM WAV')
+            duration=float(media['format']['duration']);details={'codec':stream['codec_name'],'sample_rate':stream.get('sample_rate')}
+        except Exception as e:path.unlink(missing_ok=True);raise ValueError('音频无法验证，请使用MP3或PCM WAV') from e
+    elif suffix in ('.pdf','.txt','.md','.docx','.xlsx','.pptx'):
+        if suffix=='.pdf' and not content.startswith(b'%PDF-'):raise ValueError('不是有效PDF')
+        if suffix in ('.txt','.md'):
+            try:content.decode('utf-8')
+            except UnicodeDecodeError as e:raise ValueError('文本文件需要UTF-8编码') from e
+        if suffix in ('.docx','.xlsx','.pptx'):
+            try:
+                with zipfile.ZipFile(io.BytesIO(content)) as archive:
+                    root={'.docx':'word/document.xml','.xlsx':'xl/workbook.xml','.pptx':'ppt/presentation.xml'}[suffix]
+                    if root not in archive.namelist() or '[Content_Types].xml' not in archive.namelist():raise ValueError('不是有效Office文件')
+                    if sum(x.file_size for x in archive.infolist())>MAX_FILE:raise ValueError('文档解压大小超过限制')
+            except zipfile.BadZipFile as e:raise ValueError('Office文件损坏') from e
+        kind,mime,ext='file',mimetypes.guess_type(name)[0] or 'application/octet-stream',suffix
+        path=config.DATA/'assets'/(aid+ext);path.write_bytes(content)
+    elif content[4:8]==b"ftyp":
         kind,mime,ext="video","video/mp4",".mp4"
         path=config.DATA/"assets"/(aid+ext)
         path.write_bytes(content)
         try:
             width,height,duration=probe_video(path)
+            probed=json.loads(subprocess.run(['ffprobe','-v','error','-show_streams','-of','json',str(path)],capture_output=True,timeout=20,check=True).stdout)
+            stream=next(x for x in probed['streams'] if x.get('codec_type')=='video')
+            n,d=map(int,stream.get('avg_frame_rate','0/1').split('/'));details={'codec':stream.get('codec_name'),'fps':n/d if d else 0}
         except Exception:
             path.unlink(missing_ok=True)
             raise
@@ -59,12 +88,13 @@ def save_bytes(content, name, source="upload", expected=None):
         path.unlink(missing_ok=True)
         raise ValueError("供应商结果类型与请求不符")
     normalized_name=(Path(name).stem+ext)[:120]
-    meta=dict(id=aid,name=normalized_name,kind=kind,mime=mime,path=path.name,sha256=hashlib.sha256(content).hexdigest(),width=width,height=height,duration=duration,size=len(content),source=source,created=db.now())
+    meta=dict(id=aid,name=normalized_name,kind=kind,mime=mime,path=path.name,sha256=hashlib.sha256(content).hexdigest(),width=width,height=height,duration=duration,size=len(content),source=source,created=db.now(),details=json.dumps(details))
     with db.connection() as conn:
         conn.execute("INSERT INTO assets("+",".join(meta)+") VALUES("+",".join("?" for _ in meta)+")",list(meta.values()))
     return meta
 
 def download_result(url,kind,job_id,index):
+    if url.startswith('http://'):url='https://'+url[7:] # never fetch provider outputs over plaintext HTTP
     url=public_url(url)
     # Each redirect checked before connecting. Do not forward credentials to artifact hosts.
     with httpx.Client(timeout=120,follow_redirects=False,trust_env=False) as client:
@@ -111,6 +141,7 @@ def mock_result(job):
         draw.text((175,145),"WORKFLOW TEST",fill="#718096",font_size=28)
         draw.text((175,190),"Mock output / no AI",fill="#2e3b50",font_size=26)
         for i,ref in enumerate(body["refs"][:4]):
+            if not ref.get("asset_id"):continue
             a=db.get_asset(ref["asset_id"])
             if a["kind"]=="image":
                 with Image.open(config.DATA/"assets"/a["path"]) as source:
@@ -118,8 +149,11 @@ def mock_result(job):
                     image.paste(thumb,((768-thumb.width)//2,280+i*185))
         buffer=io.BytesIO();image.save(buffer,format="PNG")
         return save_bytes(buffer.getvalue(),"mock-look.png",job["id"],"image")
-    aid=next(r["asset_id"] for r in body["refs"] if r["role"]=="look")
-    a=db.get_asset(aid)
+    local_images=[db.get_asset(r['asset_id']) for r in body['refs'] if r.get('asset_id') and db.get_asset(r['asset_id'])['kind']=='image']
+    if local_images:a=local_images[0]
+    else:
+        buffer=io.BytesIO();Image.new('RGB',(480,640),'#f4f5f7').save(buffer,format='PNG')
+        a=save_bytes(buffer.getvalue(),'mock-placeholder.png',job['id'],'image')
     target=config.DATA/"assets"/(uuid.uuid4().hex+".mp4")
     try:
         subprocess.run(["ffmpeg","-hide_banner","-loglevel","error","-y","-loop","1","-i",str(config.DATA/"assets"/a["path"]),"-t",str(body["duration"]),"-vf","scale=480:640:force_original_aspect_ratio=decrease,pad=480:640:(ow-iw)/2:(oh-ih)/2:color=white,format=yuv420p","-r","24","-c:v","libx264","-movflags","+faststart",str(target)],check=True,timeout=45,capture_output=True)

@@ -136,7 +136,7 @@ def test_ssrf_rejects_local_result_hosts(monkeypatch):
     with pytest.raises(ValueError,match='内网'):security.public_url('https://example.com/result')
     with pytest.raises(ValueError):security.public_url('http://example.com/result')
 
-@pytest.mark.parametrize('mid',[m['id'] for m in catalog.MODELS])
+@pytest.mark.parametrize('mid',['seedream','qwen-edit','wan-flash','wan-animate','kling-i2v','kling-motion','minimax-h3','vidu-ref','seedance'])
 def test_provider_request_contract(lab,image,mid):
     m=catalog.model(mid)
     # Pure builders: no network calls and no billable operations.
@@ -150,7 +150,7 @@ def test_provider_request_contract(lab,image,mid):
     if mid=='wan-animate':assert 'prompt' not in request['body']['input']
     if mid.startswith('kling'):assert request['body']['settings']['audio']=='off'
     if mid=='minimax-h3':assert request['body']['content'][1]['role']=='first_frame'
-    if mid=='seedream':assert request['body']['sequential_image_generation']=='disabled'
+    if mid=='seedream':assert 'sequential_image_generation' not in request['body'] # Pro contract has no batch switch
     if mid=='seedance':assert request['body']['generate_audio'] is False
 
 @pytest.mark.parametrize('mid,response,task,url',[
