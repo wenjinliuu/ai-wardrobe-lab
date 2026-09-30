@@ -85,3 +85,7 @@ docker compose --env-file /opt/wardrobe-lab/shared/.env -p wardrobe-lab logs --t
 2026-09-30 日志中 SSH 已成功认证、上传并执行服务器 Docker 构建；Debian Packages 下载长时间没有输出后出现 `client_loop: send disconnect: Broken pipe` / exit 255。它证明连接在运行中断开，单凭该日志不能确定是网络空闲超时、云安全中断还是服务器状态异常。随后两个任务提示 `Another deployment is running`，证明当时部署锁仍被占用。
 
 先不要重复运行旧提交。新版改为GitHub构建和SSH保活；必须从main启动新任务，Re-run旧任务仍执行旧代码。若新任务检查提示锁被占用，在腾讯网页终端执行 `sudo lslocks -o PID,COMMAND,PATH` 以及 `sudo ps -eo pid,ppid,etime,args | rg 'deploy.sh|docker compose|apt-get'`（没有rg可用grep），检查持锁进程。不要删除deploy.lock文件或盲目杀进程；先确认旧部署已停止。异常登录告警本身不能证明登录被拦截，应结合事件状态及服务器SSH日志判断。
+
+## 上传无输出或超时
+
+镜像上传每30秒报告远端文件字节数、百分比、平均KiB/s和用时。连续180秒文件无增长时停止，不启动服务；上传步骤最多25分钟。开始与失败时输出磁盘使用情况，失败时保留并显示部分镜像包大小。若持续有增长但太慢，以记录的速度判断是否更换传输渠道；若无增长，检查连接和磁盘错误，不能仅凭异常登录告警判定拦截。当前没有自动重试或断点续传。

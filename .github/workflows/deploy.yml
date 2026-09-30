@@ -48,13 +48,16 @@ jobs:
           docker save "wardrobe-lab:$GITHUB_SHA" caddy:2-alpine | gzip -1 > "$RUNNER_TEMP/images.tar.gz"
           sha256sum "$RUNNER_TEMP/images.tar.gz"
       - name: Upload source and image bundle
-        timeout-minutes: 15
+        timeout-minutes: 25
         run: |
           set -euo pipefail
           archive="$RUNNER_TEMP/source.tar.gz"
           git archive --format=tar.gz --output="$archive" HEAD
           ssh lighthouse "mkdir -p /opt/wardrobe-lab/releases/$GITHUB_SHA"
-          scp "$archive" "$RUNNER_TEMP/images.tar.gz" "lighthouse:/opt/wardrobe-lab/releases/$GITHUB_SHA/"
+          echo "Uploading source archive"
+          scp "$archive" "lighthouse:/opt/wardrobe-lab/releases/$GITHUB_SHA/"
+          echo "Source upload completed; starting image transfer"
+          bash scripts/upload-images.sh "$RUNNER_TEMP/images.tar.gz" "$GITHUB_SHA"
           digest=$(sha256sum "$RUNNER_TEMP/images.tar.gz" | cut -d ' ' -f 1)
           ssh lighthouse "cd /opt/wardrobe-lab/releases/$GITHUB_SHA && echo '$digest  images.tar.gz' | sha256sum -c - && tar -xzf source.tar.gz"
       - name: Load images and deploy without dependency downloads
@@ -65,7 +68,8 @@ jobs:
       - name: Collect persistent deployment log on failure
         if: failure()
         continue-on-error: true
-        run: ssh lighthouse "test ! -f /opt/wardrobe-lab/releases/$GITHUB_SHA/deploy.log || tail -n 100 /opt/wardrobe-lab/releases/$GITHUB_SHA/deploy.log"
+        run: |
+          ssh lighthouse "df -h /opt/wardrobe-lab; ls -lh /opt/wardrobe-lab/releases/$GITHUB_SHA/images.tar.gz 2>/dev/null || true; test ! -f /opt/wardrobe-lab/releases/$GITHUB_SHA/deploy.log || tail -n 100 /opt/wardrobe-lab/releases/$GITHUB_SHA/deploy.log"
       - name: Remove temporary private key
         if: always()
         run: rm -f ~/.ssh/lighthouse ~/.ssh/config
