@@ -1,0 +1,8 @@
+{$CADDY_SITE} {
+    request_body {
+        max_size 205MB
+    }
+    reverse_proxy app:8000
+    # Access logs disabled: signed media URLs must not enter logs.
+    header Strict-Transport-Security "max-age=31536000"
+}

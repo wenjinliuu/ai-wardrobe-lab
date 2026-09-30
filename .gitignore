@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+data/
+.venv/
+__pycache__/
+.pytest_cache/
+test-results/
+*.sqlite*
+*.pem
+*.key
+*.tar.gz

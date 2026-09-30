@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ffffff"><title>衣橱实验室 · Wardrobe Lab</title><link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script></head>
+<body>
+ <div id="login" class="login-screen hidden"><div class="login-card"><div class="brand-mark">W</div><p class="eyebrow">PRIVATE EXPERIMENT SPACE</p><h1>欢迎回到衣橱实验室</h1><p class="muted">一处安静的空间，探索你的下一套穿搭。</p><form id="login-form"><label for="password">访问密码</label><input id="password" type="password" autocomplete="current-password" required placeholder="输入服务器设置的访问密码"><button class="button primary" type="submit">进入实验室 <span>↗</span></button><p id="login-error" role="alert"></p></form></div></div>
+ <div id="shell" class="hidden">
+  <aside class="sidebar"><a class="brand" href="#studio"><span class="brand-mark">W</span><span>衣橱实验室<small>WARDROBE LAB</small></span></a><p class="nav-label">你的工作空间</p><nav id="nav" aria-label="主导航"></nav><div class="sidebar-bottom"><div class="private-label"><span class="status-dot"></span> 私人测试空间</div><p>从素材，到一套完整的 Look。</p><button id="logout" class="text-button">退出登录</button></div></aside>
+  <div class="workspace"><header class="topbar"><button id="menu-toggle" class="icon-button mobile-menu" aria-label="展开导航">☰</button><div class="breadcrumb">工作空间 <span>/</span> <b id="page-title">创作台</b></div><div class="top-actions"><span class="pill neutral">测试版 · 0.1</span><span id="connection" class="connection"><i class="status-dot"></i> 已连接</span><button id="refresh" class="icon-button" title="刷新数据" aria-label="刷新数据">↻</button></div></header><main id="main"></main><footer>WARDROBE LAB <span>·</span> 私人素材与生成结果，仅在你的测试空间中保存。</footer></div>
+ </div>
+ <dialog id="dialog"><div id="dialog-body"></div></dialog><div id="toasts" aria-live="polite"></div>
+</body></html>

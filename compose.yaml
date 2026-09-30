@@ -1,0 +1,36 @@
+services:
+  app:
+    image: ${LAB_APP_IMAGE:-wardrobe-lab:local}
+    build: .
+    restart: unless-stopped
+    env_file: ${LAB_ENV_FILE:-.env}
+    environment:
+      LAB_DATA_DIR: /data
+    volumes:
+      - ${LAB_DATA_PATH:-./data}:/data
+    expose:
+      - '8000'
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 30s
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      CADDY_SITE: ${CADDY_SITE:-:80}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+volumes:
+  caddy_data:
+  caddy_config:

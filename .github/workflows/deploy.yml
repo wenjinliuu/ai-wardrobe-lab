@@ -1,0 +1,52 @@
+name: Deploy to Tencent Lighthouse
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: lighthouse-deployment
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: pip install -r requirements-dev.txt && python -m pytest tests/test_backend.py -q
+      - name: Configure verified SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.LIGHTHOUSE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.LIGHTHOUSE_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.LIGHTHOUSE_HOST }}
+          SSH_USER: ${{ secrets.LIGHTHOUSE_USER }}
+          SSH_PORT: ${{ secrets.LIGHTHOUSE_PORT }}
+        run: |
+          set -euo pipefail
+          [[ -n "$SSH_PRIVATE_KEY" && -n "$SSH_KNOWN_HOSTS" && -n "$SSH_HOST" && -n "$SSH_USER" ]]
+          [[ "$SSH_HOST" =~ ^[a-zA-Z0-9.-]+$ && "$SSH_USER" =~ ^[a-zA-Z0-9_-]+$ ]]
+          [[ "${SSH_PORT:-22}" =~ ^[0-9]+$ ]]
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/lighthouse
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/lighthouse ~/.ssh/known_hosts
+      - name: Upload and deploy exact revision
+        env:
+          SSH_HOST: ${{ secrets.LIGHTHOUSE_HOST }}
+          SSH_USER: ${{ secrets.LIGHTHOUSE_USER }}
+          SSH_PORT: ${{ secrets.LIGHTHOUSE_PORT }}
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/wardrobe-${GITHUB_SHA}.tar.gz"
+          git archive --format=tar.gz --output="$archive" HEAD
+          port="${SSH_PORT:-22}"
+          ssh -i ~/.ssh/lighthouse -p "$port" -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" "mkdir -p /opt/wardrobe-lab/releases/$GITHUB_SHA"
+          scp -i ~/.ssh/lighthouse -P "$port" -o BatchMode=yes -o StrictHostKeyChecking=yes "$archive" "$SSH_USER@$SSH_HOST:/opt/wardrobe-lab/releases/$GITHUB_SHA/source.tar.gz"
+          ssh -i ~/.ssh/lighthouse -p "$port" -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" "cd /opt/wardrobe-lab/releases/$GITHUB_SHA && tar -xzf source.tar.gz && bash scripts/deploy.sh $GITHUB_SHA"
+      - name: Remove temporary private key
+        if: always()
+        run: rm -f ~/.ssh/lighthouse
