@@ -1,0 +1,49 @@
+name: Diagnose Lighthouse network (no deployment)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/network-diagnostic.yml'
+      - 'scripts/network-diagnostic.py'
+permissions:
+  contents: read
+concurrency:
+  group: lighthouse-deployment
+  cancel-in-progress: false
+jobs:
+  diagnose:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure verified diagnostic SSH connection
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.LIGHTHOUSE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.LIGHTHOUSE_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.LIGHTHOUSE_HOST }}
+          SSH_USER: ${{ secrets.LIGHTHOUSE_USER }}
+          SSH_PORT: ${{ secrets.LIGHTHOUSE_PORT }}
+        run: |
+          set -euo pipefail
+          [[ -n "$SSH_PRIVATE_KEY" && -n "$SSH_KNOWN_HOSTS" && -n "$SSH_HOST" && -n "$SSH_USER" ]]
+          [[ "$SSH_HOST" =~ ^[a-zA-Z0-9.-]+$ && "$SSH_USER" =~ ^[a-zA-Z0-9_-]+$ ]]
+          [[ "${SSH_PORT:-22}" =~ ^[0-9]+$ ]]
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/lighthouse
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/lighthouse ~/.ssh/known_hosts
+          printf '%s\n' 'Host diagnostic' "  HostName $SSH_HOST" "  User $SSH_USER" "  Port ${SSH_PORT:-22}" '  IdentityFile ~/.ssh/lighthouse' '  IdentitiesOnly yes' '  BatchMode yes' '  StrictHostKeyChecking yes' '  ConnectTimeout 15' '  ServerAliveInterval 15' '  ServerAliveCountMax 3' > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+      - name: Compare transfer protocols and server dependency downloads
+        run: python3 -u scripts/network-diagnostic.py --output network-diagnostic.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: network-diagnostic
+          path: network-diagnostic.json
+          if-no-files-found: warn
+      - name: Remove temporary SSH credential
+        if: always()
+        run: rm -f ~/.ssh/lighthouse ~/.ssh/config
