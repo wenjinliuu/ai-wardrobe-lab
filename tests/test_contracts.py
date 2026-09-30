@@ -108,6 +108,19 @@ def test_hy35_sse_result(lab,image):
     client=httpx.Client(transport=httpx.MockTransport(lambda r:httpx.Response(200,text=frames,headers={'content-type':'text/event-stream'})))
     assert providers.transport(m,body=b,client=client)['urls']==['https://out.example.com/a.png']
 
+@pytest.mark.parametrize('resolution,side', [('2K',2048),('4K',4096)])
+@pytest.mark.parametrize('ratio', ['9:16','16:9'])
+def test_hy35_ratio_preserves_priced_pixel_area(lab,image,resolution,side,ratio):
+    m=catalog.model('tx-hy-image-v3.5-preview');b=mode_body(m,'text',image)
+    b.update(resolution=resolution,ratio=ratio)
+    b=engine.validate(JobInput(**b).model_dump());b['job_id']='pixel-tier'
+    wire=providers.build_request(m,b,True)['body']
+    width,height=map(int,wire['size'].split('x'));rw,rh=map(int,ratio.split(':'))
+    assert width*height<=side*side
+    assert width*height>side*side*.97
+    assert width/height==pytest.approx(rw/rh,rel=.01)
+    assert 256<=min(width,height)<=max(width,height)<=8192
+
 def test_audio_document_upload_and_kind_validation(lab,image):
     buffer=io.BytesIO()
     with wave.open(buffer,'wb') as w:w.setnchannels(1);w.setsampwidth(2);w.setframerate(16000);w.writeframes(b'\x00\x00'*64000)

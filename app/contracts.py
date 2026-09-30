@@ -1,5 +1,6 @@
 """Model-specific wire contracts. Pure builders, without credentials or network."""
 from collections import defaultdict
+from math import sqrt, floor
 from . import config
 
 def usage(r, mode, kind=None):
@@ -15,7 +16,10 @@ def image_size(res,ratio,sep='x'):
     if '*' in res or 'x' in res:return res.replace('*',sep).replace('x',sep)
     side={'1K':1024,'1.5K':1536,'2K':2048,'3K':3072,'4K':4096,'1024':1024}.get(res,1024)
     w,h=map(int,('1:1' if ratio=='adaptive' else ratio).split(':'))
-    return sep.join(map(str,(side,round(side*h/w/16)*16)))
+    # Preserve the priced pixel area for portrait and landscape ratios.
+    width=max(256,floor(sqrt(side*side*w/h)/16)*16)
+    height=max(256,floor(sqrt(side*side*h/w)/16)*16)
+    return sep.join(map(str,(width,height)))
 
 def build(m,b,uri):
     a=m['adapter'];mode=b.get('video_mode','auto');mode=m['default_mode'] if mode=='auto' else mode
