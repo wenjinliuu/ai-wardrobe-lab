@@ -10,7 +10,7 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -34,19 +34,38 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/lighthouse
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/lighthouse ~/.ssh/known_hosts
-      - name: Upload and deploy exact revision
-        env:
-          SSH_HOST: ${{ secrets.LIGHTHOUSE_HOST }}
-          SSH_USER: ${{ secrets.LIGHTHOUSE_USER }}
-          SSH_PORT: ${{ secrets.LIGHTHOUSE_PORT }}
+          printf '%s\n' 'Host lighthouse' "  HostName $SSH_HOST" "  User $SSH_USER" "  Port ${SSH_PORT:-22}" '  IdentityFile ~/.ssh/lighthouse' '  IdentitiesOnly yes' '  BatchMode yes' '  StrictHostKeyChecking yes' '  ConnectTimeout 20' '  ServerAliveInterval 15' '  ServerAliveCountMax 6' > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+      - name: Verify server access and deployment lock
+        run: |
+          ssh lighthouse 'set -eu; docker version --format "{{.Server.Version}}"; test -f /opt/wardrobe-lab/shared/.env; flock -n /opt/wardrobe-lab/deploy.lock -c true || { echo "An earlier deployment still holds the server lock; inspect it before retrying."; exit 1; }'
+      - name: Build release images on GitHub
+        timeout-minutes: 15
         run: |
           set -euo pipefail
-          archive="${RUNNER_TEMP}/wardrobe-${GITHUB_SHA}.tar.gz"
+          docker build --progress=plain -t "wardrobe-lab:$GITHUB_SHA" .
+          docker pull caddy:2-alpine
+          docker save "wardrobe-lab:$GITHUB_SHA" caddy:2-alpine | gzip -1 > "$RUNNER_TEMP/images.tar.gz"
+          sha256sum "$RUNNER_TEMP/images.tar.gz"
+      - name: Upload source and image bundle
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/source.tar.gz"
           git archive --format=tar.gz --output="$archive" HEAD
-          port="${SSH_PORT:-22}"
-          ssh -i ~/.ssh/lighthouse -p "$port" -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" "mkdir -p /opt/wardrobe-lab/releases/$GITHUB_SHA"
-          scp -i ~/.ssh/lighthouse -P "$port" -o BatchMode=yes -o StrictHostKeyChecking=yes "$archive" "$SSH_USER@$SSH_HOST:/opt/wardrobe-lab/releases/$GITHUB_SHA/source.tar.gz"
-          ssh -i ~/.ssh/lighthouse -p "$port" -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" "cd /opt/wardrobe-lab/releases/$GITHUB_SHA && tar -xzf source.tar.gz && bash scripts/deploy.sh $GITHUB_SHA"
+          ssh lighthouse "mkdir -p /opt/wardrobe-lab/releases/$GITHUB_SHA"
+          scp "$archive" "$RUNNER_TEMP/images.tar.gz" "lighthouse:/opt/wardrobe-lab/releases/$GITHUB_SHA/"
+          digest=$(sha256sum "$RUNNER_TEMP/images.tar.gz" | cut -d ' ' -f 1)
+          ssh lighthouse "cd /opt/wardrobe-lab/releases/$GITHUB_SHA && echo '$digest  images.tar.gz' | sha256sum -c - && tar -xzf source.tar.gz"
+      - name: Load images and deploy without dependency downloads
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          ssh lighthouse "cd /opt/wardrobe-lab/releases/$GITHUB_SHA && bash -o pipefail -c 'timeout 10m bash scripts/deploy.sh $GITHUB_SHA --prebuilt 2>&1 | tee deploy.log'"
+      - name: Collect persistent deployment log on failure
+        if: failure()
+        continue-on-error: true
+        run: ssh lighthouse "test ! -f /opt/wardrobe-lab/releases/$GITHUB_SHA/deploy.log || tail -n 100 /opt/wardrobe-lab/releases/$GITHUB_SHA/deploy.log"
       - name: Remove temporary private key
         if: always()
-        run: rm -f ~/.ssh/lighthouse
+        run: rm -f ~/.ssh/lighthouse ~/.ssh/config
