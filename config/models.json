@@ -1341,7 +1341,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://platform.minimaxi.com/docs/api-reference/image-generation-i2i",
     "price_date": "2026-09-30",
-    "price_source": "https://platform.minimaxi.com/docs/guides/pricing-pay-as-you-go",
+    "price_source": "https://platform.minimaxi.com/docs/guides/pricing-paygo",
     "note": "人物主体参考，不是服装多图合成模型；本站一次只提供1个人物主体参考，不将衣服图冒充人脸参考。",
     "pricing": {
       "type": "image",
@@ -1398,7 +1398,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://platform.minimaxi.com/docs/api-reference/image-generation-i2i",
     "price_date": "2026-09-30",
-    "price_source": "https://platform.minimaxi.com/docs/guides/pricing-pay-as-you-go",
+    "price_source": "https://platform.minimaxi.com/docs/guides/pricing-paygo",
     "note": "人物主体参考，不是服装多图合成模型；本站一次只提供1个人物主体参考，不将衣服图冒充人脸参考。",
     "pricing": {
       "type": "image",
@@ -2439,7 +2439,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://platform.minimaxi.com/docs/api-reference/video-generation-v2-create",
     "price_date": "2026-09-30",
-    "price_source": "https://platform.minimaxi.com/docs/guides/pricing-pay-as-you-go",
+    "price_source": "https://platform.minimaxi.com/docs/guides/pricing-paygo",
     "note": "首帧/尾帧与多模态参考互斥；腾讯H3-Max仅文生/首尾帧，原厂Max另支持9图3视频3音频。H3输入视频及超额图片额外收费。",
     "ratio_min": 0.4,
     "ratio_max": 2.5,
@@ -2566,7 +2566,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://platform.minimaxi.com/docs/api-reference/video-generation-v2-create",
     "price_date": "2026-09-30",
-    "price_source": "https://platform.minimaxi.com/docs/guides/pricing-pay-as-you-go",
+    "price_source": "https://platform.minimaxi.com/docs/guides/pricing-paygo",
     "note": "首帧/尾帧与多模态参考互斥；腾讯H3-Max仅文生/首尾帧，原厂Max另支持9图3视频3音频。H3输入视频及超额图片额外收费。",
     "ratio_min": 0.4,
     "ratio_max": 2.5,
@@ -2682,7 +2682,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://platform.minimaxi.com/docs/api-reference/video-generation-i2v",
     "price_date": "2026-09-30",
-    "price_source": "https://platform.minimaxi.com/docs/guides/pricing-pay-as-you-go",
+    "price_source": "https://platform.minimaxi.com/docs/guides/pricing-paygo",
     "note": "单首帧；768P可6/10秒，1080P仅6秒。原厂查询成功后还要用file_id检索下载地址。",
     "modes": {
       "text": {
@@ -2746,7 +2746,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://platform.minimaxi.com/docs/api-reference/video-generation-i2v",
     "price_date": "2026-09-30",
-    "price_source": "https://platform.minimaxi.com/docs/guides/pricing-pay-as-you-go",
+    "price_source": "https://platform.minimaxi.com/docs/guides/pricing-paygo",
     "note": "单首帧；768P可6/10秒，1080P仅6秒。原厂查询成功后还要用file_id检索下载地址。",
     "modes": {
       "first_frame": {
@@ -3425,13 +3425,16 @@
     "modes": {
       "text": {
         "label": "纯文字",
-        "limits": {},
+        "limits": {
+          "element": 3
+        },
         "required": {}
       },
       "first_frame": {
         "label": "首帧",
         "limits": {
-          "first_frame": 1
+          "first_frame": 1,
+          "element": 3
         },
         "required": {
           "first_frame": 1
@@ -3441,7 +3444,8 @@
         "label": "首尾帧",
         "limits": {
           "first_frame": 1,
-          "last_frame": 1
+          "last_frame": 1,
+          "element": 3
         },
         "required": {
           "first_frame": 1,
@@ -3469,7 +3473,8 @@
       }
     },
     "native_path": "/v1/videos/image2video",
-    "default_mode": "first_frame"
+    "default_mode": "first_frame",
+    "element_limit": 3
   },
   {
     "id": "tx-kling-video-v3-turbo",
@@ -3514,7 +3519,7 @@
     "docs": "https://cloud.tencent.com/document/product/1823/135742",
     "price_date": "2026-09-30",
     "price_source": "https://cloud.tencent.com/document/product/1823/130055",
-    "note": "接口契约测试；账号权限与真实效果需付费实测。",
+    "note": "接口契约测试；账号权限与真实效果需付费实测。 此型号API没有声音开关，使用供应商默认声音，刊例按该型号唯一档位计价。",
     "modes": {
       "text": {
         "label": "纯文字",
@@ -3586,13 +3591,16 @@
     "modes": {
       "text": {
         "label": "纯文字",
-        "limits": {},
+        "limits": {
+          "voice": 2
+        },
         "required": {}
       },
       "first_frame": {
         "label": "首帧",
         "limits": {
-          "first_frame": 1
+          "first_frame": 1,
+          "voice": 2
         },
         "required": {
           "first_frame": 1
@@ -3602,12 +3610,16 @@
         "label": "首尾帧",
         "limits": {
           "first_frame": 1,
-          "last_frame": 1
+          "last_frame": 1,
+          "voice": 2
         },
         "required": {
           "first_frame": 1,
           "last_frame": 1
-        }
+        },
+        "resolutions": [
+          "720p"
+        ]
       }
     },
     "ratio_min": 0.4,
@@ -3625,6 +3637,9 @@
       "audio_rates": {
         "720p": 0.0,
         "1080p": 1
+      },
+      "voice_rates": {
+        "1080p": 1.2
       }
     },
     "native_path": "/v1/videos/image2video",
@@ -3687,7 +3702,10 @@
         "required": {
           "first_frame": 1,
           "last_frame": 1
-        }
+        },
+        "resolutions": [
+          "1080p"
+        ]
       }
     },
     "ratio_min": 0.4,
@@ -3757,13 +3775,16 @@
     "modes": {
       "text": {
         "label": "纯文字",
-        "limits": {},
+        "limits": {
+          "voice": 2
+        },
         "required": {}
       },
       "first_frame": {
         "label": "首帧",
         "limits": {
-          "first_frame": 1
+          "first_frame": 1,
+          "voice": 2
         },
         "required": {
           "first_frame": 1
@@ -3773,7 +3794,8 @@
         "label": "首尾帧",
         "limits": {
           "first_frame": 1,
-          "last_frame": 1
+          "last_frame": 1,
+          "voice": 2
         },
         "required": {
           "first_frame": 1,
@@ -3786,7 +3808,8 @@
           "reference_image": 7,
           "reference_video": 0,
           "reference_audio": 0,
-          "element": 7
+          "element": 7,
+          "voice": 2
         },
         "required": {},
         "require_any": true
@@ -3796,7 +3819,8 @@
         "limits": {
           "feature_video": 1,
           "reference_image": 4,
-          "element": 4
+          "element": 4,
+          "voice": 2
         },
         "required": {
           "feature_video": 1
@@ -3807,7 +3831,8 @@
         "limits": {
           "base_video": 1,
           "reference_image": 4,
-          "element": 4
+          "element": 4,
+          "voice": 2
         },
         "required": {
           "base_video": 1
@@ -3899,7 +3924,11 @@
         },
         "required": {
           "first_frame": 1
-        }
+        },
+        "durations": [
+          5,
+          10
+        ]
       },
       "first_last": {
         "label": "首尾帧",
@@ -3910,7 +3939,11 @@
         "required": {
           "first_frame": 1,
           "last_frame": 1
-        }
+        },
+        "durations": [
+          5,
+          10
+        ]
       },
       "reference": {
         "label": "多素材参考",
@@ -4015,10 +4048,22 @@
         "label": "动作驱动",
         "limits": {
           "first_frame": 1,
-          "driving_video": 1
+          "driving_video": 1,
+          "element": 1
         },
         "required": {
           "first_frame": 1,
+          "driving_video": 1
+        }
+      },
+      "motion_subject": {
+        "label": "主体ID＋动作驱动",
+        "limits": {
+          "element": 1,
+          "driving_video": 1
+        },
+        "required": {
+          "element": 1,
           "driving_video": 1
         }
       }
@@ -4037,8 +4082,10 @@
     },
     "default_mode": "motion",
     "audio_options": [
-      "off"
-    ]
+      "off",
+      "original"
+    ],
+    "element_limit": 1
   },
   {
     "id": "tx-kling-video-motion-control-v2.6-motion",
@@ -4099,7 +4146,8 @@
     },
     "default_mode": "motion",
     "audio_options": [
-      "off"
+      "off",
+      "original"
     ]
   },
   {
@@ -4239,7 +4287,7 @@
     "docs": "https://kling.ai/document-api/api/video/3-0-omni/image-to-video/legacy",
     "price_date": "2026-09-30",
     "price_source": "https://kling.ai/document-api/pricing/base/video",
-    "note": "接口契约测试；账号权限与真实效果需付费实测。",
+    "note": "接口契约测试；账号权限与真实效果需付费实测。 此型号API没有声音开关，使用供应商默认声音，刊例按该型号唯一档位计价。",
     "modes": {
       "first_frame": {
         "label": "首帧",
@@ -4249,6 +4297,11 @@
         "required": {
           "first_frame": 1
         }
+      },
+      "text": {
+        "label": "纯文字",
+        "limits": {},
+        "required": {}
       }
     },
     "ratio_min": 0.4,
@@ -4268,7 +4321,8 @@
       }
     },
     "native_path": "/image-to-video/kling-3.0-turbo",
-    "default_mode": "first_frame"
+    "default_mode": "first_frame",
+    "native_text_path": "/text-to-video/kling-3.0-turbo"
   },
   {
     "id": "native-kling-v2-6",
@@ -4327,7 +4381,10 @@
         "required": {
           "first_frame": 1,
           "last_frame": 1
-        }
+        },
+        "resolutions": [
+          "720p"
+        ]
       }
     },
     "ratio_min": 0.4,
@@ -4407,7 +4464,10 @@
         "required": {
           "first_frame": 1,
           "last_frame": 1
-        }
+        },
+        "resolutions": [
+          "1080p"
+        ]
       }
     },
     "ratio_min": 0.4,
@@ -4769,7 +4829,8 @@
     },
     "default_mode": "motion",
     "audio_options": [
-      "off"
+      "off",
+      "original"
     ]
   },
   {
@@ -4831,7 +4892,8 @@
     },
     "default_mode": "motion",
     "audio_options": [
-      "off"
+      "off",
+      "original"
     ]
   },
   {
@@ -7035,7 +7097,7 @@
     "verified": "contract_tested",
     "live_tested": false,
     "checked_at": "2026-09-30",
-    "docs": "https://help.aliyun.com/zh/model-studio/wan-video-edit-api-reference",
+    "docs": "https://help.aliyun.com/zh/model-studio/wan-video-editing-api-reference",
     "price_date": "2026-09-30",
     "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing-by-model",
     "note": "编辑原视频。默认不截断，按输入视频时长生成；输入视频不计费，只计输出。音频auto或origin。",

@@ -18,7 +18,7 @@ def mode_body(m,mode,image):
     for r in refs:
         if mode=='subjects':r['subject_name']='person'
     b=body(image,m['id'],'image' if m['kind']=='image' else 'video',image_confirmed=True)
-    b.update(refs=refs,video_mode=mode,duration=spec.get('durations',m['durations'])[0] if spec.get('durations',m['durations']) else 3,audio_mode=m['audio_options'][0],person_mode='default')
+    b.update(refs=refs,video_mode=mode,duration=spec.get('durations',m['durations'])[0] if spec.get('durations',m['durations']) else 3,audio_mode=m['audio_options'][0],person_mode='default',resolution=spec.get('resolutions',m['resolutions'])[0])
     return b
 
 def ref_for(u,image):
@@ -116,3 +116,23 @@ def test_audio_document_upload_and_kind_validation(lab,image):
     with pytest.raises(ValueError):assets.save_bytes(b'notpdf','brief.pdf')
     m=catalog.model('wan3.0-video');b=mode_body(m,'reference',image);b['refs']=[dict(asset_id=a['id'],role='audio',usage='reference_audio'),ref_for('reference_image',image)]
     assert engine.validate(JobInput(**b).model_dump())['asset_snapshot'][0]['kind']=='audio'
+
+def test_kling_wire_requirements(lab,image):
+    m=catalog.model('tx-kling-video-v3-omni');b=mode_body(m,'reference',image)
+    b['refs'].append(dict(role='audio',usage='voice',vendor_asset_id='voice-existing',vendor_kind='voice',vendor_active=True));b['audio_mode']='native'
+    b=engine.validate(JobInput(**b).model_dump());b['job_id']='omni'
+    wire=providers.build_request(m,b,True)['body'];assert wire['settings']['aspect_ratio']=='9:16'
+    assert wire['contents'][-1]['id']=='voice2' and wire['contents'][-1]['voice_id']=='voice-existing'
+    assert '@voice2' in wire['contents'][0]['text']
+    m=catalog.model('native-kling-v3-turbo');b=engine.validate(JobInput(**mode_body(m,'text',image)).model_dump());b['job_id']='turbo'
+    req=providers.build_request(m,b,True);assert req['url'].endswith('/text-to-video/kling-3.0-turbo')
+    assert 'audio' not in req['body']['settings'] and 'multi_shot' not in req['body']['settings']
+    m=catalog.model('tx-kling-image-v3');b=engine.validate(JobInput(**mode_body(m,'text',image)).model_dump());b['job_id']='image'
+    assert providers.build_request(m,b,True)['body']['resolution']=='1k'
+
+def test_kling_resolution_constraints(lab,image):
+    m=catalog.model('tx-kling-video-v2.5-turbo');b=mode_body(m,'first_last',image)
+    assert b['resolution']=='1080p';b['resolution']='720p'
+    with pytest.raises(ValueError,match='清晰度'):engine.validate(JobInput(**b).model_dump())
+    m=catalog.model('tx-kling-video-v3-omni');b=mode_body(m,'feature',image);b['audio_mode']='original'
+    with pytest.raises(ValueError,match='静音'):engine.validate(JobInput(**b).model_dump())

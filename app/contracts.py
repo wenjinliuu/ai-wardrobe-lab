@@ -7,7 +7,7 @@ def usage(r, mode, kind=None):
     kind=kind or r.get('kind') or r.get('vendor_kind') or ('video' if r['role']=='motion' else 'image')
     if kind in ('element','voice','file','link'):return kind
     if mode=='subjects':return 'subject_'+kind
-    if kind=='video':return {'motion':'driving_video','feature':'feature_video','edit':'base_video','extend':'first_video'}.get(mode,'reference_video')
+    if kind=='video':return {'motion':'driving_video','motion_subject':'driving_video','feature':'feature_video','edit':'base_video','extend':'first_video'}.get(mode,'reference_video')
     if kind=='audio':return 'driving_audio' if mode in ('audio_drive','extend','first_frame','first_last') else 'reference_audio'
     return 'first_frame' if mode in ('first_frame','first_last','motion','audio_drive') else ('last_frame' if mode=='last_frame' else 'reference_image')
 
@@ -35,6 +35,7 @@ def build(m,b,uri):
     elif a in ('qwen','wan_image'):
         path='/api/v1/services/aigc/multimodal-generation/generation'
         body.update(input={'messages':[{'role':'user','content':[*[{'image':u(r)} for r in images],{'text':prompt}]}]},parameters={'n':1,'size':res,'watermark':True,'prompt_extend':False})
+        if a=='wan_image':body['parameters'].pop('prompt_extend',None)
     elif a in ('wan3','wan_media'):
         path='/api/v1/services/aigc/video-generation/video-synthesis';headers['X-DashScope-Async']='enable'
         media=[]
@@ -62,13 +63,16 @@ def build(m,b,uri):
         if images:body['first_frame_image']=u(images[0])
         if m['provider']=='tokenhub':body['aigc_watermark']=True
     elif a in ('kling','kling_motion','kling_omni','native_kling_standard'):
-        if a=='native_kling_standard':path=m['native_path'];body={}
+        if a=='native_kling_standard':path=m.get('native_text_path') if mode=='text' else m['native_path'];body={}
         else:path='/v1/wand/kling/'+('motion-control' if a=='kling_motion' else 'omni-video' if a=='kling_omni' else 'text-to-video' if mode=='text' else 'image-to-video')
         contents=[{'type':'prompt','text':prompt}]
         for r in refs:
             typ={'first_frame':'image','driving_video':'video'}.get(r['usage'],r['usage']) if a=='kling_motion' else {'reference_image':'refer_image'}.get(r['usage'],r['usage'])
-            contents.append({'type':typ,**({'element_id':r['vendor_asset_id']} if typ=='element' else {'voice_id':r['vendor_asset_id']} if typ=='voice' else {'url':u(r)})})
+            contents.append({'type':typ,**({'id':f'{typ}{len(contents)}'} if typ in ('element','voice') else {}),**({'element_id':r['vendor_asset_id']} if typ=='element' else {'voice_id':r['vendor_asset_id']} if typ=='voice' else {'url':u(r)})})
         settings={'resolution':res,'audio':audio,'duration':dur,'multi_shot':mode=='feature' and 'v3' in m['model']}
+        if a=='kling_omni' or a in ('kling','native_kling_standard') and mode=='text':settings['aspect_ratio']=ratio
+        if 'v3-turbo' in m['model']:settings.pop('audio',None);settings.pop('multi_shot',None)
+        elif a=='kling' and m['model']!='kling-video-v3':settings.pop('multi_shot',None)
         if a=='kling_motion':settings.pop('duration');settings.pop('multi_shot');settings['character_orientation']='video'
         if mode=='edit':settings.pop('duration',None)
         body.update(contents=contents,settings=settings,options={'external_task_id':b['job_id'],'watermark_info':{'enabled':True}})
@@ -136,7 +140,7 @@ def build(m,b,uri):
     elif a in ('tx_kling_image','native_kling_image'):
         single=m.get('native_single');native=a=='native_kling_image';path='/v1/images/'+('generations' if single else 'omni-image') if native else '/v1/wand/kling-image/generation'
         if native:body={'model_name':{'kling-image-v3':'kling-v3','kling-image-o1':'kling-image-o1','kling-image-v3-omni':'kling-v3-omni'}[m['model']]}
-        body.update(prompt=prompt,n=1,resolution=res.lower() if native else res,aspect_ratio=ratio)
+        body.update(prompt=prompt,n=1,resolution=res.lower(),aspect_ratio=ratio)
         if images:
             if single:body['image']=u(images[0])
             else:body['image_list']=[{'image':u(r)} for r in images] if native else [u(r) for r in images]

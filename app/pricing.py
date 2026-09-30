@@ -17,6 +17,7 @@ def estimate(b):
     elif typ=='second':
         rates=p.get('rates',{});rates=p.get('mode_rates',{}).get(mode,rates)
         if audio=='native':rates=p.get('audio_rates',rates)
+        if any(x['kind']=='voice' for x in snap):rates=p.get('voice_rates',rates)
         if vi and p.get('video_rates'):rates=p['video_rates']
         rate=rates.get(res,p.get('flat'))
         if rate is not None:

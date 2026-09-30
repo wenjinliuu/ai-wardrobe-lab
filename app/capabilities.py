@@ -47,11 +47,11 @@ def validate(b,m,t):
             kind=r.get('vendor_kind','image')
             if r.get('url'):external_url(r['url'])
             if r.get('vendor_asset_id'):
-                if m['provider']=='ark':
+                if m['provider']=='ark' and m['adapter']=='seedance':
                     if not r['vendor_asset_id'].startswith('asset-') or not r.get('vendor_active'):raise ValueError('方舟授权Asset需要有效asset- ID并确认Active状态')
                 elif m['provider']=='minimax' and m['adapter']=='h3':
                     if not r['vendor_asset_id'].startswith('mm_file://'):raise ValueError('MiniMax已有文件请填mm_file://文件ID')
-                elif m['provider']=='dashscope' and m['adapter'] in ('wan_media','wan3'):
+                elif m['provider']=='dashscope' and m['adapter']=='wan_media':
                     if not r['vendor_asset_id'].startswith('ark_asset_'):raise ValueError('百炼资产请填写资产中心ark_asset_ ID')
                 elif kind in ('element','voice') and m['provider'] in ('kling','tokenhub'):
                     if not m.get('element_limit') and kind=='element':raise ValueError('该模型尚未开放元素ID输入')
@@ -88,7 +88,7 @@ def validate(b,m,t):
         if any(r['role'] not in ('look','identity','pose') and r.get('usage')=='first_frame' for r in refs):raise ValueError('首帧请使用完整穿搭图；单品图应选择原生参考模式')
         if not b['image_confirmed']:raise ValueError('请确认首帧穿搭图用于视频')
     if b['person_mode']=='self' and not b['identity_consent']:raise ValueError('本人素材需要确认授权')
-    if b['resolution'] not in m['resolutions']:raise ValueError('清晰度不支持')
+    if b['resolution'] not in spec.get('resolutions',m['resolutions']):raise ValueError('清晰度不支持')
     durations=spec.get('durations',m['durations'])
     if durations and b['duration'] not in durations:raise ValueError('时长不支持')
     if b['ratio'] not in m['ratios']:raise ValueError('画幅不支持')
@@ -111,6 +111,8 @@ def validate(b,m,t):
     if 'kling' in m['adapter']:
         if ni+counts['element']>m.get('max_combined_refs',spec['limits'].get('reference_image',m['max_images'])):
             if mode in ('reference','feature','edit'):raise ValueError('参考图与元素合计超出模式限制')
+        if counts['voice'] and b.get('audio_mode')=='off':raise ValueError('指定音色时不能生成静音视频')
+        if mode=='feature' and 'v3' in m['model'] and b.get('audio_mode')!='off':raise ValueError('可灵V3 Omni特征视频模式只支持静音')
         if mode in ('edit','feature') and b.get('audio_mode')=='native':raise ValueError('可灵带输入视频时请选择静音或保留原声')
         if 'v2-6' in m['model'] or 'v2.6' in m['model']:
             if b.get('audio_mode')=='native' and b['resolution']=='720p':raise ValueError('可灵2.6原生音频仅1080p')
@@ -140,6 +142,7 @@ def validate(b,m,t):
     for r in refs:
         seq[r['kind']]+=1;name={'image':'图','video':'视频','audio':'音频'}.get(r['kind'],'素材')+str(seq[r['kind']])
         if m['adapter'] in ('native_kling_omni',):name='<<<'+r['kind']+'_'+str(seq[r['kind']])+'>>>'
+        elif m['adapter'] in ('kling','kling_omni','kling_motion') and r['kind'] in ('element','voice'):name='@'+r['kind']+str(refs.index(r)+1)
         elif m['adapter']=='tx_pixverse':name='@ref'+str(seq[r['kind']])
         lines.append(name+'='+catalog.ROLES[r['role']]+'（'+catalog.USAGES[r['usage']]+'）')
     if lines:prompt+='\n素材说明：'+'；'.join(lines)
