@@ -75,7 +75,7 @@ def logout():
 
 @app.get("/api/bootstrap")
 def bootstrap(token=Depends(require_auth)):
-    return {"csrf":sign("csrf:"+token),"models":catalog.MODELS,"templates":engine.templates(),"roles":catalog.ROLES,"skills":catalog.SKILLS,"usages":catalog.USAGES,"live_enabled":config.LIVE,"dev_mode":config.DEV,"daily_budget":config.DAILY_BUDGET,"daily_call_limit":config.DAILY_CALLS,
+    return {"csrf":sign("csrf:"+token),"models":catalog.MODELS,"templates":engine.templates(),"roles":catalog.ROLES,"skills":catalog.SKILLS,"usages":catalog.USAGES,"live_enabled":config.LIVE,"dev_mode":config.DEV,"daily_budget":None,"daily_call_limit":None,
             "providers":[dict(id=k,name=v["name"],base=v["base"],key_env=v["key_env"],configured=bool(config.key(k))) for k,v in config.PROVIDERS.items()]}
 
 def public_asset(a, job_sources=None):
@@ -90,7 +90,7 @@ def public_asset(a, job_sources=None):
                         resolution=b['resolution'],duration=b['duration'] if b['kind']=='video' else None,
                         ratio=b['ratio'],audio_mode=b.get('audio_mode','off'),input_mode=b['video_mode'],
                         template_id=b['template_id'],template_version=b['template_version'],
-                        actual_cny=j['actual'],billing=r.get('billing'),reported_usage=db.reported_usage(j.get('result')),created=j['created'])
+                        actual_cny=j['actual'],billing=r.get('billing'),auto_billing=json.loads(j.get('result') or '{}').get('auto_billing'),reported_usage=db.reported_usage(j.get('result')),created=j['created'])
     return {k:v for k,v in a.items() if k!="path"} | {"url":"/api/assets/"+a["id"]+"/file","download_url":"/api/assets/"+a["id"]+"/download",'provenance':provenance}
 
 @app.get("/api/assets",dependencies=[Depends(require_auth)])
@@ -242,7 +242,7 @@ def review(jid:str,data:Review):
     from .billing import reconcile
     bill=reconcile(body,data.model_dump())
     d=data.model_dump();d["reviewed_at"]=db.now();d['billing']=bill
-    db.update_job(jid,review=json.dumps(d,ensure_ascii=False),actual=bill['actual_cny'])
+    db.update_job(jid,review=json.dumps(d,ensure_ascii=False),actual=bill['actual_cny'] if bill['actual_cny'] is not None else (json.loads(j.get('result') or '{}').get('auto_billing') or {}).get('actual_cny'))
     return {"ok":True}
 
 class Resume(Strict):
@@ -306,7 +306,9 @@ def export(format:Literal["json","csv"]="json"):
         return "'"+s if s.startswith(("=","+","-","@","\t","\r")) else s
     for j in data:
         r=j["review"] or {};b=j["body"]
-        w.writerow([safe(x) for x in [j["id"],b["group"],b["model_id"],b["mode"],j["state"],r.get("clothing"),r.get("verdict"),j["reserved"],j["actual"],j["created"],b["model_snapshot"]["provider"],b["model_snapshot"]["model"],b["resolution"],b["duration"] if b["kind"]=="video" else None,b["ratio"],b.get("audio_mode"),b["video_mode"],b["template_version"],r.get("billing",{}).get("actual_units"),r.get("billing",{}).get("inferred_units"),r.get("billing",{}).get("unit"),r.get("billing",{}).get("rate"),r.get("billing",{}).get("rate_basis"),r.get("billing",{}).get("cost_source"),r.get("billing",{}).get("difference_cny"),r.get("background"),r.get("framing"),r.get("detail"),json.dumps([{k:a.get(k) for k in ("id","width","height","duration","size")} for aid in j["outputs"] or [] for a in [db.get_asset(aid)]],ensure_ascii=False),json.dumps(j.get('reported_usage',{}),ensure_ascii=False)]])
+        manual=r.get('billing') or {}
+        bill=manual if manual.get('actual_cny') is not None else (j.get('auto_billing') or manual)
+        w.writerow([safe(x) for x in [j["id"],b["group"],b["model_id"],b["mode"],j["state"],r.get("clothing"),r.get("verdict"),j["reserved"],j["actual"],j["created"],b["model_snapshot"]["provider"],b["model_snapshot"]["model"],b["resolution"],b["duration"] if b["kind"]=="video" else None,b["ratio"],b.get("audio_mode"),b["video_mode"],b["template_version"],bill.get("actual_units"),bill.get("inferred_units"),bill.get("unit"),bill.get("rate"),bill.get("rate_basis"),bill.get("cost_source"),bill.get("difference_cny"),r.get("background"),r.get("framing"),r.get("detail"),json.dumps([{k:a.get(k) for k in ("id","width","height","duration","size")} for aid in j["outputs"] or [] for a in [db.get_asset(aid)]],ensure_ascii=False),json.dumps(j.get('reported_usage',{}),ensure_ascii=False)]])
     return Response("\ufeff"+out.getvalue(),media_type="text/csv",headers={"Content-Disposition":"attachment; filename=wardrobe-experiments.csv"})
 
 @app.post("/api/demo",dependencies=[Depends(require_write)])

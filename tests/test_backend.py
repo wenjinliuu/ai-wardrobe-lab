@@ -126,10 +126,11 @@ def test_live_requires_enable_consent_key_and_budget(lab,image,monkeypatch):
     monkeypatch.setattr(config,'LIVE',True);monkeypatch.setenv('DASHSCOPE_API_KEY','test-key')
     monkeypatch.setattr(config,'DAILY_BUDGET',1)
     j=engine.create_job(b,'live-2')
-    with pytest.raises(ValueError,match='预算'):engine.create_job(b,'live-3')
-    # Failed unknown charges still reserve budget; no dishonest zero-cost default.
+    assert engine.create_job(b,'live-3')['state']=='queued'
+    # Daily count and budget settings no longer block testing; unknown fees stay unknown.
     db.update_job(j['id'],state='failed')
-    with pytest.raises(ValueError,match='预算'):engine.create_job(b,'live-4')
+    monkeypatch.setattr(config,'DAILY_CALLS',0)
+    assert engine.create_job(b,'live-4')['state']=='queued'
 
 def test_ssrf_rejects_local_result_hosts(monkeypatch):
     monkeypatch.setattr(security.socket,'getaddrinfo',lambda *a,**k:[(2,1,6,'',('127.0.0.1',443))])

@@ -1,4 +1,5 @@
 import json
+from math import isfinite
 import sqlite3
 import time
 from contextlib import contextmanager
@@ -66,11 +67,12 @@ def get_asset(asset_id):
 
 def reported_usage(result):
     usage = json.loads(result or '{}').get('usage') or {}
-    return {k:v for k,v in usage.items() if k in ('total_tokens','input_tokens','output_tokens','prompt_tokens','completion_tokens','credits','generated_images') and isinstance(v,(int,float)) and not isinstance(v,bool)} if isinstance(usage,dict) else {}
+    return {k:v for k,v in usage.items() if k in ('total_tokens','input_tokens','output_tokens','prompt_tokens','completion_tokens','credits','generated_images') and isinstance(v,(int,float)) and not isinstance(v,bool) and isfinite(v) and v>=0} if isinstance(usage,dict) else {}
 
 def decode_job(r):
     d = dict(r)
     d['reported_usage'] = reported_usage(d.get('result'))
+    d['auto_billing'] = json.loads(d.get('result') or '{}').get('auto_billing')
     for k in ("body","outputs","review"):
         d[k] = json.loads(d[k]) if d[k] else None
     d.pop("result", None) # provider links are private; export contains asset IDs only

@@ -3,7 +3,6 @@ import hashlib
 import json
 import time
 import uuid
-from datetime import datetime, timezone, timedelta
 from urllib.parse import urlsplit
 from . import assets, catalog, config, db, providers
 from .security import redact
@@ -52,6 +51,8 @@ def create_job(b,idem):
     digest=hashlib.sha256(canonical.encode()).hexdigest()
     jid=uuid.uuid4().hex
     b["job_id"]=jid
+    request=providers.build_request(b["model_snapshot"],b,True)
+    b["request_endpoint"]={"method":request["method"],"url":request["url"]}
     with db.connection() as conn:
         conn.execute("BEGIN IMMEDIATE")
         existing=conn.execute("SELECT * FROM jobs WHERE idem=?",(idem,)).fetchone()
@@ -59,17 +60,25 @@ def create_job(b,idem):
             if existing["request_hash"]!=digest:raise ValueError("同一幂等编号不能用于不同请求")
             return db.decode_job(existing)
         if conn.execute("SELECT COUNT(*) FROM jobs WHERE state IN ('queued','submitting','polling','saving')").fetchone()[0]>=24:raise ValueError("任务队列已满，请稍后提交")
-        if b["mode"]=="live":
-            shanghai=timezone(timedelta(hours=8));n=datetime.now(shanghai)
-            start=n.replace(hour=0,minute=0,second=0,microsecond=0).timestamp()
-            count,total=conn.execute("SELECT COUNT(*),COALESCE(SUM(COALESCE(actual,reserved)),0) FROM jobs WHERE created>=? AND json_extract(body,'$.mode')='live'",(start,)).fetchone()
-            if count>=config.DAILY_CALLS or total+b["max_cost"]>config.DAILY_BUDGET:raise ValueError("超过今日调用次数或预算预占上限")
         conn.execute("INSERT INTO jobs(id,idem,request_hash,body,state,created,updated,reserved) VALUES(?,?,?,?,?,?,?,?)",(jid,idem,digest,json.dumps(b,ensure_ascii=False),"queued",db.now(),db.now(),0 if b["mode"]=="mock" else b["max_cost"]))
         row=conn.execute("SELECT * FROM jobs WHERE id=?",(jid,)).fetchone()
     db.event(jid,"input_validate","素材、模板与预算校验完成；任务已排队")
     return db.decode_job(row)
 
 def handle_result(job,result):
+    # Query responses carry cumulative usage. Preserve it when later responses omit it.
+    previous=json.loads(job.get('result') or '{}')
+    result=dict(result)
+    old_usage=previous.get('usage');new_usage=result.get('usage')
+    result['usage']={**(old_usage if isinstance(old_usage,dict) else {}), **(new_usage if isinstance(new_usage,dict) else {})}
+    from .billing import automatic
+    bill=automatic(json.loads(job['body']), result['usage']) or previous.get('auto_billing')
+    if bill:
+        result['auto_billing']=bill
+        review=json.loads(job.get('review') or '{}')
+        if review.get('billing',{}).get('cost_source') not in ('receipt','units_calculated'):
+            db.update_job(job['id'],actual=bill['actual_cny'])
+    db.update_job(job['id'],result=json.dumps(result))
     if result.get("task_id"):
         db.update_job(job["id"],provider_task_id=str(result["task_id"]))
     db.update_job(job["id"],request_id=result.get("request_id", ""))
@@ -155,5 +164,17 @@ async def worker():
         await asyncio.sleep(.5)
 
 def recover():
+    # Recalculate previously persisted provider usage using each job's frozen tariff.
+    from .billing import automatic
+    with db.connection() as conn:
+        rows=conn.execute("SELECT * FROM jobs WHERE result IS NOT NULL").fetchall()
+        for row in rows:
+            j=dict(row);result=json.loads(j['result'] or '{}')
+            bill=automatic(json.loads(j['body']),result.get('usage') or {})
+            if not bill:continue
+            result['auto_billing']=bill
+            review=json.loads(j['review'] or '{}')
+            actual=j['actual'] if review.get('billing',{}).get('cost_source') in ('receipt','units_calculated') else bill['actual_cny']
+            conn.execute('UPDATE jobs SET result=?,actual=? WHERE id=?',(json.dumps(result),actual,j['id']))
     with db.connection() as conn:
         conn.execute("UPDATE jobs SET state='uncertain',error='服务重启时提交结果尚未落盘，请核对供应商控制台，不自动重提' WHERE state='submitting'")

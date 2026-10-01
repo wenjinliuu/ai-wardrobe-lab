@@ -62,3 +62,20 @@ def reconcile(body, receipt):
                 difference_cny=rounded(Decimal(str(amount)) - Decimal(str(calculated))) if mode == 'both' else None,
                 cost_source='mock' if body['mode'] == 'mock' else 'units_calculated' if mode == 'units' else 'receipt' if actual is not None else 'pending',
                 price_snapshot=ctx, rate_note=receipt.get('rate_note', ''), reference=receipt.get('bill_reference', ''))
+
+
+def automatic(body, usage):
+    """Calculate only documented billable totals and a frozen verified tariff."""
+    from math import isfinite
+    ctx = body.get('billing_snapshot') or context(body)
+    if body.get('mode') != 'live' or body['model_snapshot']['provider'] != 'tokenhub':
+        return None
+    if ctx.get('verification') != 'official' or not ctx.get('rate') or not ctx.get('rate_basis'):
+        return None
+    key = 'total_tokens' if ctx.get('unit') == 'tokens' else 'credits' if ctx.get('unit') == 'credits' else None
+    units = usage.get(key) if key and isinstance(usage, dict) else None
+    if isinstance(units, bool) or not isinstance(units, (int, float)) or not isfinite(units) or units < 0:
+        return None
+    return dict(actual_cny=rounded(Decimal(str(units)) * Decimal(str(ctx['rate'])) / Decimal(str(ctx['rate_basis']))),
+                actual_units=units, unit=ctx['unit'], rate=ctx['rate'], rate_basis=ctx['rate_basis'],
+                cost_source='provider_usage', price_snapshot=ctx)

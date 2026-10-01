@@ -120,13 +120,13 @@ def test_builtin_white_revision_keeps_custom_history(lab,image):
     assert old['prompt']!=white['prompt']
     engine.seed_templates();assert engine.template('studio-front',2)==white
     with db.connection() as c:
-        c.execute("DELETE FROM templates WHERE id='studio-front' AND version=2")
+        c.execute("DELETE FROM templates WHERE id='studio-front' AND version>=2")
         custom=dict(old,version=2,prompt='用户旧模板')
         c.execute('INSERT INTO templates VALUES(?,?,?,?)',('studio-front',2,json.dumps(custom),db.now()))
     engine.seed_templates()
     assert engine.template('studio-front',2)['prompt']=='用户旧模板'
-    assert '纯白' in engine.template('studio-front',3)['prompt']
-    engine.seed_templates();assert next(t for t in engine.templates() if t['id']=='studio-front')['version']==3
+    assert '84%' in engine.template('studio-front',4)['prompt']
+    engine.seed_templates();assert next(t for t in engine.templates() if t['id']=='studio-front')['version']==4
 
 
 def test_upload_origin_self_and_user_are_separate(lab,image):
@@ -137,3 +137,39 @@ def test_upload_origin_self_and_user_are_separate(lab,image):
         assert r.status_code==200
         assert r.json()['provenance']=={'type':'upload','upload_origin':origin}
     assert lab.post('/api/assets',data={'origin':'invented'},files={'file':('origin.png',content,'image/png')}).status_code==422
+
+
+def test_reported_total_automatic_cost_and_invalid_units():
+    b=sample()
+    r=billing.automatic(b,{'total_tokens':198000,'output_tokens':42})
+    assert r['actual_cny']==1.98 and r['actual_units']==198000
+    assert r['cost_source']=='provider_usage'
+    for units in [-1, True, '198000', float('nan'), float('inf')]:
+        assert billing.automatic(b,{'total_tokens':units}) is None
+    assert billing.automatic(b,{'output_tokens':198000}) is None
+    b['model_snapshot'].pop('billing')
+    assert billing.automatic(b,{'total_tokens':198000}) is None
+
+
+def test_usage_survives_polling_and_manual_review(lab,image):
+    j=engine.create_job(body(image),'auto-usage-key')
+    b=sample();b.update(j['body']);b['mode']='live';b['model_snapshot']=catalog.model('tx-minimax-video-h3-max');b['billing_snapshot']=billing.context(b)
+    with db.connection() as c:c.execute('UPDATE jobs SET body=? WHERE id=?',(json.dumps(b),j['id']))
+    engine.handle_result(db.get_job(j['id']),dict(status='pending',task_id='task-1',urls=[],usage={'total_tokens':198000}))
+    current=db.decode_job(db.get_job(j['id']));assert current['actual']==1.98 and current['reported_usage']['total_tokens']==198000
+    engine.handle_result(db.get_job(j['id']),dict(status='succeeded',task_id='task-1',urls=['https://example.com/result.mp4'],usage={}))
+    current=db.decode_job(db.get_job(j['id']));assert current['actual']==1.98 and current['auto_billing']['actual_units']==198000
+    # Saving a score without a receipt retains the automatically calculated cost.
+    assert lab.post('/api/jobs/'+j['id']+'/review',json={'verdict':'pending','clothing':3,'identity':3}).status_code==200
+    assert db.get_job(j['id'])['actual']==1.98
+    assert lab.post('/api/jobs/'+j['id']+'/review',json={'verdict':'pending','clothing':3,'identity':3,'actual_cny':1.5}).status_code==200
+    engine.handle_result(db.get_job(j['id']),dict(status='pending',task_id='task-1',urls=[],usage={'total_tokens':200000}))
+    assert db.get_job(j['id'])['actual']==1.5
+    assert db.decode_job(db.get_job(j['id']))['auto_billing']['actual_cny']==2
+
+
+def test_tokenhub_billing_usage_precedes_native_usage():
+    from app import providers
+    m=catalog.model('tx-minimax-video-h3-max')
+    r=providers.normalize(m,{'id':'test','status':'succeeded','usage':{'total_tokens':1},'tokenhub_usage':{'total_tokens':198000},'content':{'video_url':'https://example.com/v.mp4'}},False)
+    assert r['usage']['total_tokens']==198000

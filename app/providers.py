@@ -91,7 +91,7 @@ def normalize(m,data,submit=False):
     elif status in {"unknown"}:status="unknown"
     else:status="pending"
     if error:status="failed"
-    usage=data.get("usage") or data.get("task",{}).get("usage") or data.get("tokenhub_usage") or {}
+    usage=data.get("tokenhub_usage") or data.get("usage") or data.get("task",{}).get("usage") or {}
     if a=="vidu":usage={"credits":data.get("credits")}
     return dict(status=status,task_id=task,urls=urls,usage=usage,request_id=data.get("request_id",""),error=error)
 
@@ -195,4 +195,4 @@ def normalize_extra(m,data,submit=False):
     elif status=='unknown':status='unknown'
     else:status='pending'
     if data.get('error') or data.get('code',0) not in (0,None) or data.get('base_resp',{}).get('status_code',0)!=0 or data.get('ErrCode',0)!=0:status='failed';error='供应商返回错误，请核对请求编号与控制台'
-    return dict(task_id=task,status=status,urls=urls,usage=data.get('usage') or data.get('tokenhub_usage') or {},request_id=data.get('request_id',''),error=error)
+    return dict(task_id=task,status=status,urls=urls,usage=data.get('tokenhub_usage') or data.get('usage') or {},request_id=data.get('request_id',''),error=error)
