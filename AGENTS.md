@@ -1,5 +1,11 @@
 # Working on AI Wardrobe Lab
 
+## Frozen project — 2026-10-02 (Asia/Shanghai)
+
+The project owner explicitly froze this project. Read `docs/project-freeze-2026-10-02.md` before any work. Preserve existing code, records and assets. Documentation and read-only inspection are permitted; do not add features, expand provider integrations, run billable experiments, trigger deployments or migrate/delete data unless the owner explicitly reopens that scope. Freeze documentation does not authorize shutting down services, revoking credentials or archiving the repository read-only. Existing CI/deployment configuration remains unchanged.
+
+## Existing implementation safeguards
+
 - This is a private API evaluation console, not a production wardrobe app.
 - Default to mock mode. Never run billable provider calls as part of automated tests.
 - Keep credentials in server environment variables, never browser storage or repository files.
