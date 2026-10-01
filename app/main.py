@@ -6,7 +6,7 @@ import secrets
 import time
 from contextlib import asynccontextmanager
 from typing import Literal
-from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, File
+from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
@@ -78,20 +78,35 @@ def bootstrap(token=Depends(require_auth)):
     return {"csrf":sign("csrf:"+token),"models":catalog.MODELS,"templates":engine.templates(),"roles":catalog.ROLES,"skills":catalog.SKILLS,"usages":catalog.USAGES,"live_enabled":config.LIVE,"dev_mode":config.DEV,"daily_budget":config.DAILY_BUDGET,"daily_call_limit":config.DAILY_CALLS,
             "providers":[dict(id=k,name=v["name"],base=v["base"],key_env=v["key_env"],configured=bool(config.key(k))) for k,v in config.PROVIDERS.items()]}
 
-def public_asset(a):
-    return {k:v for k,v in a.items() if k!="path"} | {"url":"/api/assets/"+a["id"]+"/file","download_url":"/api/assets/"+a["id"]+"/download"}
+def public_asset(a, job_sources=None):
+    j=job_sources.get(a['source']) if job_sources is not None else db.get_job(a['source']) if a['source'] else None
+    provenance={'type':'demo' if a['source']=='demo' else 'upload' if a['source']=='upload' else 'unknown'}
+    if provenance['type']=='upload':
+        provenance['upload_origin']=json.loads(a.get('details') or '{}').get('upload_origin','unknown')
+    if j:
+        b=json.loads(j['body']);m=b['model_snapshot'];r=json.loads(j['review'] or '{}')
+        provenance=dict(type='mock_generated' if b['mode']=='mock' else 'generated',job_id=j['id'],
+                        provider=m['provider'],model=m['model'],model_name=m['name'],label=b.get('label'),
+                        resolution=b['resolution'],duration=b['duration'] if b['kind']=='video' else None,
+                        ratio=b['ratio'],audio_mode=b.get('audio_mode','off'),input_mode=b['video_mode'],
+                        template_id=b['template_id'],template_version=b['template_version'],
+                        actual_cny=j['actual'],billing=r.get('billing'),reported_usage=db.reported_usage(j.get('result')),created=j['created'])
+    return {k:v for k,v in a.items() if k!="path"} | {"url":"/api/assets/"+a["id"]+"/file","download_url":"/api/assets/"+a["id"]+"/download",'provenance':provenance}
 
 @app.get("/api/assets",dependencies=[Depends(require_auth)])
-def get_assets():return [public_asset(a) for a in db.list_assets()]
+def get_assets():
+    with db.connection() as conn:
+        sources={r['id']:dict(r) for r in conn.execute('SELECT id,body,review,actual,created,result FROM jobs')}
+    return [public_asset(a,sources) for a in db.list_assets()]
 
 @app.post("/api/assets",dependencies=[Depends(require_write)])
-async def upload(file:UploadFile=File(...)):
+async def upload(file:UploadFile=File(...),origin:Literal['self','user']=Form('self')):
     data=bytearray()
     while chunk:=await file.read(1024*1024):
         data.extend(chunk)
         if len(data)>assets.MAX_FILE:raise HTTPException(413,"文件超过200MB")
     await file.close()
-    a=await asyncio.to_thread(assets.save_bytes,bytes(data),file.filename or "upload")
+    a=await asyncio.to_thread(assets.save_bytes,bytes(data),file.filename or "upload",upload_origin=origin)
     return public_asset(a)
 
 def file_response(a,download=False):
@@ -187,16 +202,36 @@ def job_detail(jid:str):
     with db.connection() as conn:d["events"]=[dict(r) for r in conn.execute("SELECT stage,message,created FROM events WHERE job_id=? ORDER BY id",(jid,))]
     result=json.loads(j["result"] or "{}")
     d["usage"]=result.get("usage",{})
+    from .billing import context
+    d['billing_context']=d['body'].get('billing_snapshot') or context(d['body'])
     return d
 
-class Review(Strict):
+class Receipt(Strict):
+    actual_cny:float|None=Field(default=None,ge=0,le=10000,allow_inf_nan=False)
+    billing_mode:Literal['amount','units','both']='amount'
+    billing_unit:Literal['tokens','credits']|None=None
+    billed_units:float|None=Field(default=None,ge=0,le=1e12,allow_inf_nan=False)
+    rate_override:float|None=Field(default=None,gt=0,le=1e6,allow_inf_nan=False)
+    rate_note:str=Field(default='',max_length=300)
+    bill_reference:str=Field(default='',max_length=200)
+
+@app.post('/api/jobs/{jid}/billing-preview',dependencies=[Depends(require_write)])
+def billing_preview(jid:str,data:Receipt):
+    j=db.get_job(jid)
+    if not j:raise HTTPException(404,'任务不存在')
+    from .billing import reconcile
+    return reconcile(json.loads(j['body']),data.model_dump())
+
+class Review(Receipt):
     verdict:Literal["pass","fail","pending"]
     clothing:int=Field(ge=1,le=5)
     identity:int=Field(ge=1,le=5)
-    motion:int=Field(ge=1,le=5)
+    motion:int|None=Field(default=None,ge=1,le=5)
     issues:list[str]=Field(default_factory=list,max_length=12)
     notes:str=Field(default="",max_length=1000)
-    actual_cny:float|None=Field(default=None,ge=0,le=10000,allow_inf_nan=False)
+    background:int|None=Field(default=None,ge=1,le=5)
+    framing:int|None=Field(default=None,ge=1,le=5)
+    detail:int|None=Field(default=None,ge=1,le=5)
 
 @app.post("/api/jobs/{jid}/review",dependencies=[Depends(require_write)])
 def review(jid:str,data:Review):
@@ -204,9 +239,10 @@ def review(jid:str,data:Review):
     if not j:raise HTTPException(404,"任务不存在")
     if data.verdict=="pass" and j["state"]!="succeeded":raise ValueError("只有保存成功的结果才能评为合格")
     body=json.loads(j["body"])
-    if body["mode"]=="mock" and data.actual_cny not in (None,0):raise ValueError("模拟任务没有真实模型费用")
-    d=data.model_dump();d["reviewed_at"]=db.now()
-    db.update_job(jid,review=json.dumps(d,ensure_ascii=False),actual=0 if body["mode"]=="mock" else data.actual_cny)
+    from .billing import reconcile
+    bill=reconcile(body,data.model_dump())
+    d=data.model_dump();d["reviewed_at"]=db.now();d['billing']=bill
+    db.update_job(jid,review=json.dumps(d,ensure_ascii=False),actual=bill['actual_cny'])
     return {"ok":True}
 
 class Resume(Strict):
@@ -262,15 +298,15 @@ def save_template(data:TemplateInput):
 @app.get("/api/export",dependencies=[Depends(require_auth)])
 def export(format:Literal["json","csv"]="json"):
     data=jobs()
-    if format=="json":return Response(json.dumps({"schema_version":"1.0","exported_at":db.now(),"jobs":data},ensure_ascii=False,indent=2),media_type="application/json",headers={"Content-Disposition":"attachment; filename=wardrobe-experiments.json"})
+    if format=="json":return Response(json.dumps({"schema_version":"1.1","exported_at":db.now(),"jobs":data,"assets":get_assets()},ensure_ascii=False,indent=2),media_type="application/json",headers={"Content-Disposition":"attachment; filename=wardrobe-experiments.json"})
     out=io.StringIO();w=csv.writer(out)
-    w.writerow(["任务","组别","模型","模式","状态","服装评分","人工结论","预占预算CNY","账单核对CNY","创建时间"])
+    w.writerow(["任务","组别","模型","模式","状态","服装评分","人工结论","预占预算CNY","账单核对CNY","创建时间","渠道","上游模型","选定清晰度","选定时长秒","画幅","声音","输入模式","模板版本","实际计费用量","反推计费用量","计费单位","单价","单价基数","费用来源","账单差额CNY","背景评分","构图评分","细节评分","输出文件规格","供应商回传用量（未对账）"])
     def safe(x):
         s=str(x if x is not None else "")
         return "'"+s if s.startswith(("=","+","-","@","\t","\r")) else s
     for j in data:
         r=j["review"] or {};b=j["body"]
-        w.writerow([safe(x) for x in [j["id"],b["group"],b["model_id"],b["mode"],j["state"],r.get("clothing"),r.get("verdict"),j["reserved"],j["actual"],j["created"]]])
+        w.writerow([safe(x) for x in [j["id"],b["group"],b["model_id"],b["mode"],j["state"],r.get("clothing"),r.get("verdict"),j["reserved"],j["actual"],j["created"],b["model_snapshot"]["provider"],b["model_snapshot"]["model"],b["resolution"],b["duration"] if b["kind"]=="video" else None,b["ratio"],b.get("audio_mode"),b["video_mode"],b["template_version"],r.get("billing",{}).get("actual_units"),r.get("billing",{}).get("inferred_units"),r.get("billing",{}).get("unit"),r.get("billing",{}).get("rate"),r.get("billing",{}).get("rate_basis"),r.get("billing",{}).get("cost_source"),r.get("billing",{}).get("difference_cny"),r.get("background"),r.get("framing"),r.get("detail"),json.dumps([{k:a.get(k) for k in ("id","width","height","duration","size")} for aid in j["outputs"] or [] for a in [db.get_asset(aid)]],ensure_ascii=False),json.dumps(j.get('reported_usage',{}),ensure_ascii=False)]])
     return Response("\ufeff"+out.getvalue(),media_type="text/csv",headers={"Content-Disposition":"attachment; filename=wardrobe-experiments.csv"})
 
 @app.post("/api/demo",dependencies=[Depends(require_write)])

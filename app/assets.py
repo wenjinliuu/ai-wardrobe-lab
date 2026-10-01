@@ -23,7 +23,7 @@ def probe_video(path):
     except (OSError,ValueError,KeyError,StopIteration,subprocess.SubprocessError) as e:
         raise ValueError("视频无法验证，请上传有效 MP4 / MOV；服务器需安装 ffprobe") from e
 
-def save_bytes(content, name, source="upload", expected=None):
+def save_bytes(content, name, source="upload", expected=None, upload_origin=None):
     if not content or len(content)>MAX_FILE:
         raise ValueError("文件为空或超过200MB")
     aid=uuid.uuid4().hex
@@ -87,6 +87,8 @@ def save_bytes(content, name, source="upload", expected=None):
     if expected and kind!=expected:
         path.unlink(missing_ok=True)
         raise ValueError("供应商结果类型与请求不符")
+    if source == 'upload' and upload_origin is not None:
+        details['upload_origin'] = upload_origin
     normalized_name=(Path(name).stem+ext)[:120]
     meta=dict(id=aid,name=normalized_name,kind=kind,mime=mime,path=path.name,sha256=hashlib.sha256(content).hexdigest(),width=width,height=height,duration=duration,size=len(content),source=source,created=db.now(),details=json.dumps(details))
     with db.connection() as conn:

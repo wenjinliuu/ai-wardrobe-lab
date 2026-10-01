@@ -64,8 +64,13 @@ def get_asset(asset_id):
         raise ValueError("素材不存在或已删除")
     return dict(r)
 
+def reported_usage(result):
+    usage = json.loads(result or '{}').get('usage') or {}
+    return {k:v for k,v in usage.items() if k in ('total_tokens','input_tokens','output_tokens','prompt_tokens','completion_tokens','credits','generated_images') and isinstance(v,(int,float)) and not isinstance(v,bool)} if isinstance(usage,dict) else {}
+
 def decode_job(r):
     d = dict(r)
+    d['reported_usage'] = reported_usage(d.get('result'))
     for k in ("body","outputs","review"):
         d[k] = json.loads(d[k]) if d[k] else None
     d.pop("result", None) # provider links are private; export contains asset IDs only

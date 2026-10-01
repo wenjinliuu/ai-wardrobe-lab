@@ -53,6 +53,10 @@ def test_desktop_full_mock_flow(browser,server):
     expect(page.locator('#preview-canvas video')).to_be_visible()
     page.wait_for_function("document.querySelector('#preview-canvas video').readyState >= 2")
     page.evaluate("window.previewElement=document.querySelector('#preview-canvas video')")
+    page.locator('#main [data-loop]').check()
+    assert page.locator('#preview-canvas video').evaluate('(e)=>e.loop')
+    page.locator('#main [data-loop]').uncheck()
+    assert not page.locator('#preview-canvas video').evaluate('(e)=>e.loop')
     page.locator('#video-scrub').fill('500')
     page.wait_for_function("document.querySelector('#preview-canvas video').currentTime > .5")
     page.wait_for_timeout(3500)
@@ -64,6 +68,27 @@ def test_desktop_full_mock_flow(browser,server):
     for route in ['assets','templates','workflows','jobs','compare','settings']:
         page.locator(f'#nav [data-route="{route}"]').click();expect(page.locator('#page-title')).to_have_text({'assets':'素材库','templates':'模板与提示词','workflows':'技能与工作流','jobs':'测试记录','compare':'结果对比','settings':'平台连接'}[route])
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+    page.locator('#nav [data-route="assets"]').click()
+    page.locator('#asset-source').select_option('mock_generated')
+    expect(page.locator('.asset-grid')).to_contain_text('模拟结果')
+    expect(page.locator('.asset-grid')).to_contain_text('选定')
+    expect(page.locator('.asset-grid')).to_contain_text('实际文件')
+    expect(page.locator('.asset-grid')).to_contain_text('模拟零费用')
+    page.screenshot(path='test-results/evaluation-assets.png',full_page=True)
+    page.set_viewport_size({'width':390,'height':844})
+    assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+    page.screenshot(path='test-results/evaluation-assets-mobile.png',full_page=True)
+    page.set_viewport_size({'width':1440,'height':1100})
+    page.locator('#nav [data-route="compare"]').click()
+    video_id=page.evaluate("state.jobs.find(j=>j.body.kind==='video'&&j.state==='succeeded').id")
+    page.locator('#compare-select').select_option(video_id)
+    expect(page.locator('#compare-candidate video')).to_be_visible()
+    expect(page.locator('.compare-card')).to_have_count(0)
+    page.locator('[data-add-compare]').click()
+    expect(page.locator('.compare-card')).to_have_count(1)
+    page.locator('#main [data-loop]').check()
+    assert page.locator('.compare-card video').evaluate('(e)=>e.loop')
+    page.screenshot(path='test-results/evaluation-compare.png',full_page=True)
     page.locator('#nav [data-route="templates"]').click();page.locator('[data-edit-template="new"]').click();page.locator('[name="prompt"]').fill('保持衣服颜色与图案不变，白色背景全身展示。');page.locator('#template-form button[type="submit"]').click();expect(page.locator('main')).to_contain_text('我的新模板')
     assert not errors
     page.close()
@@ -190,4 +215,54 @@ def test_http_uuid_fallback_and_explicit_retry_keeps_id(browser,server):
     assert re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}',keys[0])
     records=page.evaluate("fetch('/api/jobs').then(r=>r.json())")
     assert len([j for j in records if j['body']['label']=='uuid-idempotency-check'])==1
+    page.close()
+
+
+def test_receipt_controls_and_no_inferred_units_promoted(browser,server):
+    from copy import deepcopy
+    from app.billing import reconcile
+    page=browser.new_page(viewport={'width':1440,'height':1100})
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(server);expect(page.locator('main h1')).to_be_visible()
+    page.locator('[data-action="demo"]').click()
+    page.locator('[data-action="generate"]').click()
+    expect(page.locator('#preview-mode')).to_contain_text('已保存',timeout=15000)
+    jid=page.evaluate('state.activeJob')
+    detail=page.evaluate('(id)=>fetch("/api/jobs/"+id).then(r=>r.json())',jid)
+    fake=deepcopy(detail);fake['body']['mode']='live';fake['actual']=None
+    fake['body']['model_snapshot']['provider']='tokenhub'
+    fake['billing_context'].update(unit='tokens',rate=10,rate_basis=1000000,verification='official',date='2026-10-01')
+    fake['body']['billing_snapshot']=fake['billing_context']
+    submitted=[]
+    def intercept(route):
+        if route.request.method=='GET':route.fulfill(json=fake)
+        elif route.request.url.endswith('/billing-preview'):
+            try:route.fulfill(json=reconcile(fake['body'],route.request.post_data_json))
+            except ValueError as e:route.fulfill(status=422,json={'detail':str(e)})
+        elif route.request.url.endswith('/review'):
+            submitted.append(route.request.post_data_json);route.fulfill(json={'ok':True})
+        else:route.continue_()
+    page.route('**/api/jobs/'+jid+'**',intercept)
+    page.locator('#preview-actions [data-job]').click()
+    expect(page.locator('.billing-panel')).to_be_visible()
+    page.locator('[name="actual_cny"]').fill('1.98')
+    expect(page.locator('[name="billed_units"]')).to_have_value('198000')
+    expect(page.locator('#billing-calculation')).to_contain_text('非实测')
+    page.locator('[name="billing_mode"]').select_option('units')
+    expect(page.locator('[name="billed_units"]')).to_have_value('')
+    page.locator('[name="billed_units"]').fill('300000')
+    expect(page.locator('[name="actual_cny"]')).to_have_value('3')
+    assert page.locator('[name="actual_cny"]').evaluate('(e)=>e.readOnly')
+    page.locator('[name="billing_mode"]').select_option('both')
+    expect(page.locator('[name="actual_cny"]')).to_have_value('')
+    page.locator('[name="actual_cny"]').fill('2.4')
+    expect(page.locator('#billing-calculation')).to_contain_text('账单差额 ¥-0.6')
+    Path('test-results').mkdir(exist_ok=True)
+    page.screenshot(path='test-results/evaluation-billing.png',full_page=True)
+    page.locator('#review-form button[type="submit"]').click()
+    expect(page.locator('#dialog')).not_to_be_visible()
+    assert len(submitted)==1
+    assert submitted[0]['actual_cny']==2.4 and submitted[0]['billed_units']==300000
+    assert submitted[0]['billing_mode']=='both' and submitted[0]['motion'] is None
+    assert not errors
     page.close()

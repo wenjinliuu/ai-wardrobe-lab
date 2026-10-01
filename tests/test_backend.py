@@ -116,8 +116,8 @@ def test_model_role_and_duration_validation(lab,image):
 def test_immutable_template_versions(lab,image):
     j=engine.create_job(body(image),'template-version-key')
     t=engine.templates()[0]
-    data={k:v for k,v in t.items() if k not in ('version','workflow')};data['prompt']='new prompt'
-    r=lab.post('/api/templates',json=data);assert r.status_code==200 and r.json()['version']==2
+    data={k:v for k,v in t.items() if k not in ('version','workflow','builtin_revision')};data['prompt']='new prompt'
+    r=lab.post('/api/templates',json=data);assert r.status_code==200 and r.json()['version']==t['version']+1
     assert json.loads(db.get_job(j['id'])['body'])['template_snapshot']['version']==1
 
 def test_live_requires_enable_consent_key_and_budget(lab,image,monkeypatch):

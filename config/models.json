@@ -96,7 +96,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://help.aliyun.com/zh/model-studio/qwen-image-edit-api",
     "price_date": "2026-09-30",
-    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing-by-model",
+    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing",
     "note": "接口契约测试；账号权限与真实效果需付费实测。",
     "pricing": {
       "type": "image",
@@ -148,7 +148,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://help.aliyun.com/zh/model-studio/qwen-image-generation-and-editing-api-reference",
     "price_date": "2026-09-30",
-    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing-by-model",
+    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing",
     "note": "原生0～3图；输入每张0.02元，输出按像素档位收费。建议输入384～2048px；同步接口一次输出1张。",
     "pricing": {
       "type": "image",
@@ -214,7 +214,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://help.aliyun.com/zh/model-studio/qwen-image-generation-and-editing-api-reference",
     "price_date": "2026-09-30",
-    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing-by-model",
+    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing",
     "note": "原生0～3图；输入每张0.02元，输出按像素档位收费。建议输入384～2048px；同步接口一次输出1张。",
     "pricing": {
       "type": "image",
@@ -279,7 +279,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://help.aliyun.com/zh/model-studio/wan-image-generation-and-editing-api-reference",
     "price_date": "2026-09-30",
-    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing-by-model",
+    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing",
     "note": "0～9图，支持编辑和多图参考；Pro的4K仅纯文生图单张输出，本页禁止带参考图选4K。",
     "ratio_min": 0.125,
     "ratio_max": 8,
@@ -341,7 +341,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://help.aliyun.com/zh/model-studio/wan-image-generation-and-editing-api-reference",
     "price_date": "2026-09-30",
-    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing-by-model",
+    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing",
     "note": "0～9图，支持编辑和多图参考；Pro的4K仅纯文生图单张输出，本页禁止带参考图选4K。",
     "ratio_min": 0.125,
     "ratio_max": 8,
@@ -430,7 +430,15 @@
     "default_mode": "reference",
     "audio_options": [
       "off"
-    ]
+    ],
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-hy-image-v3.5-preview",
@@ -494,7 +502,15 @@
     "default_mode": "reference",
     "audio_options": [
       "off"
-    ]
+    ],
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-wand-vega-image-lite",
@@ -558,7 +574,15 @@
     "default_mode": "reference",
     "audio_options": [
       "off"
-    ]
+    ],
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-wand-vega-image-flash",
@@ -622,7 +646,15 @@
     "default_mode": "reference",
     "audio_options": [
       "off"
-    ]
+    ],
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-wand-vega-image-pro",
@@ -688,7 +720,15 @@
     "default_mode": "reference",
     "audio_options": [
       "off"
-    ]
+    ],
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-vidu-image-q2",
@@ -773,7 +813,15 @@
     "default_mode": "reference",
     "audio_options": [
       "off"
-    ]
+    ],
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-seedream-image-v5.0-pro",
@@ -839,7 +887,15 @@
     "default_mode": "reference",
     "audio_options": [
       "off"
-    ]
+    ],
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-seedream-image-v5.0-lite",
@@ -900,7 +956,15 @@
     "sequential": true,
     "audio_options": [
       "off"
-    ]
+    ],
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-kling-image-v3",
@@ -968,7 +1032,15 @@
     "audio_options": [
       "off"
     ],
-    "max_combined_refs": 10
+    "max_combined_refs": 10,
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-kling-image-o1",
@@ -1036,7 +1108,15 @@
     "audio_options": [
       "off"
     ],
-    "max_combined_refs": 10
+    "max_combined_refs": 10,
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-kling-image-v3-omni",
@@ -1105,7 +1185,15 @@
     "audio_options": [
       "off"
     ],
-    "max_combined_refs": 10
+    "max_combined_refs": 10,
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "native-kling-image-v3",
@@ -1471,7 +1559,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://help.aliyun.com/zh/model-studio/legacy-image-to-video-api-reference/",
     "price_date": "2026-09-30",
-    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing-by-model",
+    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing",
     "note": "接口契约测试；账号权限与真实效果需付费实测。",
     "modes": {
       "first_frame": {
@@ -1564,7 +1652,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://help.aliyun.com/zh/model-studio/wan3-video-generation-api-reference",
     "price_date": "2026-09-30",
-    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing-by-model",
+    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing",
     "note": "参考模式最多10图+5视频+5音频，可加1文件或1网页；首/尾帧不能混用参考素材；输入视频+输出时长≤30秒，同价有声/静音。",
     "ratio_min": 0.125,
     "ratio_max": 8,
@@ -1700,7 +1788,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://help.aliyun.com/zh/model-studio/wan3-video-generation-api-reference",
     "price_date": "2026-09-30",
-    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing-by-model",
+    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing",
     "note": "参考模式最多10图+5视频+5音频，可加1文件或1网页；首/尾帧不能混用参考素材；输入视频+输出时长≤30秒，同价有声/静音。",
     "ratio_min": 0.125,
     "ratio_max": 8,
@@ -1818,7 +1906,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://help.aliyun.com/zh/model-studio/wan-video-to-video-api-reference",
     "price_date": "2026-09-30",
-    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing-by-model",
+    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing",
     "note": "图片+视频参考合计≤5，另可选1张首帧。音色通过每条reference_voice绑定，不能作为独立音频项发送；含视频输出最长10秒。",
     "modes": {
       "reference": {
@@ -1903,7 +1991,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://help.aliyun.com/zh/model-studio/image-to-video-general-api-reference",
     "price_date": "2026-09-30",
-    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing-by-model",
+    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing",
     "note": "R2V图片+视频合计≤5；I2V支持首/尾帧+驱动音频，续写duration是最终总时长；音色逐素材绑定入口见角色设置。",
     "modes": {
       "first_frame": {
@@ -1994,7 +2082,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://help.aliyun.com/zh/model-studio/wan-animate-move-api",
     "price_date": "2026-09-30",
-    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing-by-model",
+    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing",
     "note": "不接收提示词，动作、输出时长由参考视频驱动；服务档位不是固定输出分辨率。",
     "modes": {
       "motion": {
@@ -2152,7 +2240,15 @@
     "audio_options": [
       "native"
     ],
-    "default_mode": "first_frame"
+    "default_mode": "first_frame",
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-minimax-video-h3-max",
@@ -2258,18 +2354,20 @@
         "480P": 0.33,
         "768P": 0.5
       },
-      "input_video": true,
-      "input_rates": {
-        "480P": 0.33,
-        "768P": 0.5
-      },
-      "free_images": 2,
-      "extra_image": 0.5
+      "free_images": 2
     },
     "audio_options": [
       "native"
     ],
-    "default_mode": "first_frame"
+    "default_mode": "first_frame",
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-minimax-video-v2.3",
@@ -2333,7 +2431,15 @@
     "default_mode": "first_frame",
     "audio_options": [
       "off"
-    ]
+    ],
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-minimax-video-v2.3-fast",
@@ -2392,7 +2498,15 @@
     "default_mode": "first_frame",
     "audio_options": [
       "off"
-    ]
+    ],
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "native-MiniMax-H3",
@@ -2882,7 +2996,15 @@
     "audio_options": [
       "native"
     ],
-    "default_mode": "first_frame"
+    "default_mode": "first_frame",
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-pixverse-v6.0",
@@ -2993,7 +3115,15 @@
         "1080p": 0.67459
       }
     },
-    "default_mode": "first_frame"
+    "default_mode": "first_frame",
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-pixverse-v5.6",
@@ -3089,7 +3219,15 @@
         "1080p": 0.8799
       }
     },
-    "default_mode": "first_frame"
+    "default_mode": "first_frame",
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-pixverse-c1",
@@ -3200,7 +3338,15 @@
         "1080p": 0.70392
       }
     },
-    "default_mode": "first_frame"
+    "default_mode": "first_frame",
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-hy-video",
@@ -3258,7 +3404,15 @@
     "default_mode": "first_frame",
     "audio_options": [
       "off"
-    ]
+    ],
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-yt-video",
@@ -3315,7 +3469,15 @@
     "default_mode": "first_frame",
     "audio_options": [
       "off"
-    ]
+    ],
+    "billing": {
+      "unit": "credits",
+      "rate": 1,
+      "rate_basis": 1,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-yt-human",
@@ -3375,7 +3537,15 @@
     "default_mode": "audio_drive",
     "audio_options": [
       "off"
-    ]
+    ],
+    "billing": {
+      "unit": "credits",
+      "rate": 1,
+      "rate_basis": 1,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "kling-i2v",
@@ -3474,7 +3644,15 @@
     },
     "native_path": "/v1/videos/image2video",
     "default_mode": "first_frame",
-    "element_limit": 3
+    "element_limit": 3,
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-kling-video-v3-turbo",
@@ -3553,7 +3731,15 @@
       }
     },
     "native_path": "/v1/videos/image2video",
-    "default_mode": "first_frame"
+    "default_mode": "first_frame",
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-kling-video-v2.6",
@@ -3643,7 +3829,15 @@
       }
     },
     "native_path": "/v1/videos/image2video",
-    "default_mode": "first_frame"
+    "default_mode": "first_frame",
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-kling-video-v2.5-turbo",
@@ -3725,7 +3919,15 @@
       }
     },
     "native_path": "/v1/videos/image2video",
-    "default_mode": "first_frame"
+    "default_mode": "first_frame",
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-kling-video-v3-omni",
@@ -3870,7 +4072,15 @@
         "4k": 3
       }
     },
-    "default_mode": "first_frame"
+    "default_mode": "first_frame",
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-kling-video-o1",
@@ -4009,7 +4219,15 @@
         "4k": 3
       }
     },
-    "default_mode": "first_frame"
+    "default_mode": "first_frame",
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "kling-motion",
@@ -4085,7 +4303,15 @@
       "off",
       "original"
     ],
-    "element_limit": 1
+    "element_limit": 1,
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "tx-kling-video-motion-control-v2.6-motion",
@@ -4148,7 +4374,15 @@
     "audio_options": [
       "off",
       "original"
-    ]
+    ],
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
+    }
   },
   {
     "id": "native-kling-v3",
@@ -4992,6 +5226,14 @@
         "720p": 0.625,
         "1080p": 0.75
       }
+    },
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
     }
   },
   {
@@ -5140,18 +5382,19 @@
         "720p": 0.375,
         "1080p": 0.40625
       },
-      "mode_rates": {
-        "reference": {
-          "540p": 0.125,
-          "720p": 0.3125,
-          "1080p": 0.40625
-        },
-        "subjects": {
-          "540p": 0.125,
-          "720p": 0.3125,
-          "1080p": 0.40625
-        }
+      "video_rates": {
+        "540p": 0.125,
+        "720p": 0.3125,
+        "1080p": 0.40625
       }
+    },
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
     }
   },
   {
@@ -5275,6 +5518,14 @@
         "720p": 0.375,
         "1080p": 0.46875
       }
+    },
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
     }
   },
   {
@@ -5422,6 +5673,14 @@
     "pricing": {
       "type": "vidu_q2",
       "version": "q2-pro"
+    },
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
     }
   },
   {
@@ -5527,6 +5786,14 @@
     "pricing": {
       "type": "vidu_q2",
       "version": "q2-turbo"
+    },
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
     }
   },
   {
@@ -5639,6 +5906,14 @@
     "pricing": {
       "type": "vidu_q2",
       "version": "q2"
+    },
+    "billing": {
+      "unit": "tokens",
+      "rate": 10,
+      "rate_basis": 1000000,
+      "checked_at": "2026-10-01",
+      "verification": "official",
+      "source": "https://cloud.tencent.com/document/product/1823/130055"
     }
   },
   {
@@ -7099,7 +7374,7 @@
     "checked_at": "2026-09-30",
     "docs": "https://help.aliyun.com/zh/model-studio/wan-video-editing-api-reference",
     "price_date": "2026-09-30",
-    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing-by-model",
+    "price_source": "https://help.aliyun.com/zh/model-studio/model-pricing",
     "note": "编辑原视频。默认不截断，按输入视频时长生成；输入视频不计费，只计输出。音频auto或origin。",
     "modes": {
       "edit": {
@@ -7130,7 +7405,8 @@
       "rates": {
         "720P": 0.6,
         "1080P": 1
-      }
+      },
+      "input_video": true
     },
     "requires_workspace": true
   },

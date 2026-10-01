@@ -12,6 +12,11 @@ def seed_templates():
     items=json.loads((config.ROOT/"config/templates.json").read_text())
     with db.connection() as conn:
         for t in items:
+            if t.get('builtin_revision'):
+                previous = conn.execute("SELECT version,body FROM templates WHERE id=?", (t['id'],)).fetchall()
+                if any(json.loads(r['body']).get('builtin_revision') == t['builtin_revision'] for r in previous):
+                    continue
+                t = dict(t, version=max(t['version'], max((r['version'] for r in previous), default=0)+1))
             conn.execute("INSERT OR IGNORE INTO templates VALUES(?,?,?,?)",(t["id"],t["version"],json.dumps(t,ensure_ascii=False),db.now()))
 
 def templates():
@@ -28,7 +33,10 @@ def validate(b):
     from .capabilities import validate as check
     m=catalog.model(b['model_id']);t=template(b['template_id'],b['template_version'])
     if t['kind']!=b['kind'] or (m['kind']=='image')!=(b['kind']=='image'):raise ValueError('模板、模型与生成类型不匹配')
-    return check(b,m,t)
+    checked=check(b,m,t)
+    from .billing import context
+    checked['billing_snapshot']=context(checked)
+    return checked
 
 def estimate(b):
     from .pricing import estimate as quote

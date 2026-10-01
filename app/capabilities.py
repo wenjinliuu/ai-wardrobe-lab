@@ -133,7 +133,8 @@ def validate(b,m,t):
     if b['mode']=='live':
         inline_bytes=sum(db.get_asset(r['asset_id'])['size'] for r in refs if r.get('asset_id') and r['kind']=='image') if m.get('inline_images',True) and not config.PUBLIC_BASE.startswith('https://') else 0
         if inline_bytes*4/3>m.get('body_mb',64)*1024*1024:raise ValueError('Base64请求体超过模型上限，请使用公网URL或减少素材大小')
-        if not config.LIVE or not config.key(m['provider']):raise ValueError('真实调用未开启或服务器尚未配置平台Key')
+        if not config.LIVE:raise ValueError('服务器真实调用尚未开启，请设置LAB_LIVE_ENABLED=true并重新加载服务')
+        if not config.key(m['provider']):raise ValueError(f'{config.PROVIDERS[m["provider"]]["name"]}尚未配置Key，请核对{config.PROVIDERS[m["provider"]]["key_env"]}')
         if not b['paid_confirmed'] or b['max_cost']<=0:raise ValueError('请确认付费并填写预算')
         if m.get('verified')!='contract_tested':raise ValueError('模型尚未通过接口契约测试')
     prompt=b['prompt_override'] or t['prompt']
