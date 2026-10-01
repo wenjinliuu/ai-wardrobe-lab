@@ -88,6 +88,7 @@ def test_desktop_full_mock_flow(browser,server):
     expect(page.locator('.result-details')).to_contain_text('模型标识')
     page.locator('#main [data-loop]').check()
     assert page.locator('.compare-card video').evaluate('(e)=>e.loop')
+    assert page.locator('#main [data-loop]').bounding_box()['width']<30
     page.locator('.compare-card video').evaluate('(e)=>e.dataset.continuity="kept"')
     page.evaluate('refreshResults(true)')
     assert page.locator('.compare-card video').get_attribute('data-continuity')=='kept'
