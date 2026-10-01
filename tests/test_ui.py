@@ -314,3 +314,33 @@ def test_personal_image_save_and_outfit(browser,server):
     page.screenshot(path='test-results/personal-mobile.png',full_page=True)
     assert errors==[]
     page.close()
+
+
+def test_personal_visual_library_picker(browser,server):
+    page=browser.new_page(viewport={'width':390,'height':844})
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(server+'/#personal')
+    page.locator('button[data-person-picker="face_asset_id"]').last.click()
+    expect(page.locator('#picker-results img').first).to_be_visible()
+    assert not page.locator('#upload-input').evaluate('(e)=>e.multiple')
+    assert '.mp4' not in page.locator('#upload-input').get_attribute('accept')
+    page.locator('#picker-kind').select_option('image')
+    page.locator('#picker-query').fill('no-such-reference-file')
+    expect(page.locator('#picker-results')).to_contain_text('没有符合条件')
+    page.locator('#picker-query').fill('')
+    selected=page.locator('#picker-results [data-pick]').first.get_attribute('data-pick')
+    page.locator('#picker-results [data-pick]').first.click()
+    expect(page.locator('dialog')).not_to_be_visible()
+    expect(page.locator('button[data-person-picker="face_asset_id"] img')).to_be_visible()
+    assert page.evaluate('state.personal.face_asset_id')==selected
+    assert page.evaluate('state.draft.refs.length')==0
+    page.locator('button[data-person-picker="body_asset_id"]').last.click()
+    assert page.locator('#picker-results [data-pick]').count()>0
+    page.locator('[data-close]').first.click()
+    page.locator('[data-person-clear="face_asset_id"]').click()
+    assert page.evaluate('state.personal.face_asset_id') is None
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    Path('test-results').mkdir(exist_ok=True)
+    page.screenshot(path='test-results/personal-picker-mobile.png',full_page=True)
+    assert errors==[]
+    page.close()

@@ -250,3 +250,19 @@ def test_mock_personal_cannot_enter_paid_outfit(lab,image):
     b=body(image,model='tx-kling-image-o1',mode='live',identity_consent=True,paid_confirmed=True,personal_profile_id=p['id']);b['refs'].insert(0,{'asset_id':aid,'role':'body'})
     r=lab.post('/api/preview',json=b)
     assert r.status_code==422 and '模拟形象' in r.json()['detail']
+
+
+def test_personal_fullbody_prompt_reaches_provider(lab,image):
+    b=personal_request(image)
+    b['model_id']='tx-kling-image-v3'
+    checked=engine.validate(b)
+    request=providers.build_request(checked['model_snapshot'],checked,True)
+    assert request['body']['prompt']==checked['compiled_prompt']
+    assert '完整成人的全身' in request['body']['prompt']
+    assert '不是抠出头像' in request['body']['prompt']
+    assert '82%–86%' in request['body']['prompt']
+    assert request['body']['image']=='asset://'+image['id']
+    assert request['body']['n']==1
+    assert checked['personal_settings']['body_mode']=='values'
+    assert checked['asset_snapshot'][0]['role']=='identity'
+    assert engine.template('personal-image',1)['negative_prompt']!=engine.template('personal-image',2)['negative_prompt']
