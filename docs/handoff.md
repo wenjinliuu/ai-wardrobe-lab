@@ -144,3 +144,5 @@ SQLite新增assets.details字段，启动时兼容添加，保存视频帧率/�
 - Image previews open original-size view; explicit per-job comparison selection overlays retained automatic result feed.
 - Asset deletion dialog lists referring jobs/profiles. Archive hides from library and pickers while keeping files, frozen experiments, costs and personal references. Permanent file deletion still requires no references. No completed billing history is silently erased.
 - Automated tests use mock/provider contract requests only, no billable generations. Real model output consistency still needs user evaluation.
+
+- Deployment runner dependency preparation was observed stuck for over 10 minutes before SSH; skip package refresh when FFmpeg/FFprobe are already installed and bound missing-package setup to 4 minutes. Latest push supersedes older CI jobs; remote deploy retains flock and single-process safeguards. CI validation and server health remain required.
