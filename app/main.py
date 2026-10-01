@@ -78,6 +78,14 @@ def bootstrap(token=Depends(require_auth)):
     return {"csrf":sign("csrf:"+token),"models":catalog.MODELS,"templates":engine.templates(),"roles":catalog.ROLES,"skills":catalog.SKILLS,"usages":catalog.USAGES,"live_enabled":config.LIVE,"dev_mode":config.DEV,"daily_budget":None,"daily_call_limit":None,
             "providers":[dict(id=k,name=v["name"],base=v["base"],key_env=v["key_env"],configured=bool(config.key(k))) for k,v in config.PROVIDERS.items()]}
 
+def asset_purpose(b):
+    if b.get('personal_settings') or b.get('template_id')=='personal-image':return 'personal'
+    category=b.get('template_snapshot',{}).get('category')
+    if b.get('kind')=='video':return 'outfit_video'
+    if category=='garment_present':return 'product'
+    if category=='outfit_image' or b.get('template_id') in ('studio-front','soft-quarter'):return 'outfit'
+    return 'image'
+
 def public_asset(a, job_sources=None):
     j=job_sources.get(a['source']) if job_sources is not None else db.get_job(a['source']) if a['source'] else None
     provenance={'type':'demo' if a['source']=='demo' else 'upload' if a['source']=='upload' else 'unknown'}
@@ -89,7 +97,7 @@ def public_asset(a, job_sources=None):
                         provider=m['provider'],model=m['model'],model_name=m['name'],label=b.get('label'),
                         resolution=b['resolution'],duration=b['duration'] if b['kind']=='video' else None,
                         ratio=b['ratio'],audio_mode=b.get('audio_mode','off'),input_mode=b['video_mode'],
-                        template_id=b['template_id'],template_version=b['template_version'],
+                        template_id=b['template_id'],template_version=b['template_version'],purpose=asset_purpose(b),
                         actual_cny=j['actual'],billing=r.get('billing'),auto_billing=json.loads(j.get('result') or '{}').get('auto_billing'),reported_usage=db.reported_usage(j.get('result')),created=j['created'])
     return {k:v for k,v in a.items() if k!="path"} | {"url":"/api/assets/"+a["id"]+"/file","download_url":"/api/assets/"+a["id"]+"/download",'provenance':provenance}
 
@@ -123,15 +131,32 @@ def media(aid:str,expires:int,sig:str):
     if not validate_asset_signature(aid,expires,sig):raise HTTPException(403,"素材链接已过期或签名无效")
     return file_response(db.get_asset(aid))
 
-@app.delete("/api/assets/{aid}",dependencies=[Depends(require_write)])
-def delete_asset(aid:str):
-    a=db.get_asset(aid)
-    if any(aid in (p['asset_id'],p['settings'].get('face_asset_id'),p['settings'].get('body_asset_id')) for p in personal.listing()):raise ValueError('素材已被个人形象引用；请先移除对应形象')
+def asset_links(aid):
+    jobs=[];profiles=[]
     with db.connection() as conn:
-        for r in conn.execute("SELECT body,outputs FROM jobs"):
-            b=json.loads(r["body"])
-            if aid in json.loads(r["outputs"]) or any(x.get("asset_id")==aid for x in b["refs"]):raise ValueError("素材已被测试记录引用；请先删除相关任务记录")
-        conn.execute("DELETE FROM assets WHERE id=?",(aid,))
+        for r in conn.execute('SELECT id,body,outputs,state FROM jobs'):
+            b=json.loads(r['body'])
+            if aid in json.loads(r['outputs']) or any(x.get('asset_id')==aid for x in b['refs']):
+                jobs.append(dict(id=r['id'],label=b.get('label') or b['model_snapshot']['name'],state=r['state'],output=aid in json.loads(r['outputs'])))
+    for p in personal.listing():
+        if aid in (p['asset_id'],p['settings'].get('face_asset_id'),p['settings'].get('body_asset_id')):profiles.append(dict(id=p['id'],name=p['settings']['name']))
+    return dict(jobs=jobs,profiles=profiles)
+
+@app.get('/api/assets/{aid}/bindings',dependencies=[Depends(require_auth)])
+def asset_bindings(aid:str):
+    db.get_asset(aid)
+    return asset_links(aid)
+
+@app.delete("/api/assets/{aid}",dependencies=[Depends(require_write)])
+def delete_asset(aid:str,archive:bool=False):
+    a=db.get_asset(aid);links=asset_links(aid)
+    if archive:
+        details=json.loads(a.get('details') or '{}');details['library_hidden']=True
+        with db.connection() as conn:conn.execute('UPDATE assets SET details=? WHERE id=?',(json.dumps(details),aid))
+        return {'ok':True,'archived':True}
+    if links['profiles']:raise ValueError('素材已被个人形象引用；可保留记录并移出素材库')
+    if links['jobs']:raise ValueError('素材已被测试记录引用；可保留记录并移出素材库')
+    with db.connection() as conn:conn.execute("DELETE FROM assets WHERE id=?",(aid,))
     (config.DATA/"assets"/a["path"]).unlink(missing_ok=True)
     return {"ok":True}
 
@@ -174,6 +199,7 @@ class JobInput(Strict):
     mock_failure:Literal["none","generation","submit_unknown","save_once"]="none"
     personal_settings:personal.Settings|None=None
     personal_profile_id:str|None=Field(default=None,pattern=r"^[a-f0-9]{32}$")
+    creative_options:personal.CreativeOptions=Field(default_factory=personal.CreativeOptions)
 
 @app.post("/api/preview",dependencies=[Depends(require_write)])
 def preview(data:JobInput):

@@ -136,3 +136,11 @@ SQLite新增assets.details字段，启动时兼容添加，保存视频帧率/�
 ### 2026-10-02 个人形象全身约束与素材选择修订
 用户实测腾讯可灵Image v3只输出小头像，原版本虽然有全身提示词，但效果不合格；不能把测试通过解释为真实形象保真通过。强化提示词明确输入自拍仅提供身份，输出重新生成完整成人躯干/四肢/鞋子、82%–86%占比、不继承输入裁切、不把原脸贴小图，个人模板v2追加头像/胸像/人物过小等避免项，保留旧任务版本。新增契约断言实际provider请求携带完整提示词和身份参考；未进行付费重测。
 个人外貌与全身参考改为缩略图素材库选择器（上传/搜索/类型与来源筛选/取消选择），复用创作台的素材选择入口；个人位置只选一张图片，不误加入穿搭草稿。个人记录直接展示实际编译发送的提示词。所有图片接口当前仍按一次一张请求；多图返回解析与保存本来支持列表，输出数量设置不在本次变更范围。腾讯可灵官方n范围1–9，千问3.0有多图输出，万相2.7普通模式n范围1–4、组图最大12，不能把输入图数量上限等同于输出数量；扩展批量输出需要同时修改估算成本和每张结果的展示与确认逻辑。
+
+## 2026-10-02 creative modules and library workflows
+- Added optional server-validated hairstyle, numeric height/weight/build, restrained pose/action modules to image/video jobs. Compiled into frozen prompt snapshots, no extra AI planning call; promptless adapters explicitly cannot apply these instructions. First-frame models may retain supplied appearance; this is not a quality guarantee.
+- Repeated library selection uses structural remaining-slot checks separately from material validation. Image multi-reference and video first/last-frame flows covered by browser regression tests; full provider validation remains authoritative.
+- Visual library chooser shared across personal and studio references; video defaults to generated outfit-purpose results, with optional all-material override. Generated purpose inferred from frozen template category (personal/product/outfit/outfit_video), not visual certification of white background or completeness.
+- Image previews open original-size view; explicit per-job comparison selection overlays retained automatic result feed.
+- Asset deletion dialog lists referring jobs/profiles. Archive hides from library and pickers while keeping files, frozen experiments, costs and personal references. Permanent file deletion still requires no references. No completed billing history is silently erased.
+- Automated tests use mock/provider contract requests only, no billable generations. Real model output consistency still needs user evaluation.

@@ -95,3 +95,40 @@ def save(p, pid=None):
     p=dict(p,id=pid)
     with db.connection() as c:c.execute('INSERT INTO personal_profiles VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body,updated=excluded.updated',(pid,json.dumps(p,ensure_ascii=False),db.now(),db.now()))
     return p
+
+
+POSES = {
+ "template": ("跟随展示模板", ""),
+ "relaxed": ("自然站立", "自然站立，双手轻放身体两侧，完整展示服装"),
+ "weight-shift": ("轻微重心变化", "一脚轻微承重，另一脚自然放松，双手不遮挡衣服"),
+ "quarter": ("微侧身展示", "身体侧转约30度，脸部自然朝向镜头，保持全身完整"),
+ "catalog": ("克制随机姿势", "自行选择一种自然、克制的服装目录模特姿势，不夸张、不跳跃、不遮挡主要服装"),
+ "gentle-motion": ("轻微模特动作", "固定镜头，轻微移动重心，自然调整手臂，幅度小，服装完整可见"),
+ "turn": ("缓慢45度转身", "从正面缓慢转到约45度并短暂停留，动作自然克制"),
+ "full-turn": ("完整360度展示", "从正面缓慢完成一次360度转身并回到正面，只伴随轻微手臂与重心变化，全身始终可见"),
+ "calm-random": ("克制随机动作", "自行选择自然克制的模特展示动作，轻微转身或重心变化，不跳跃、不走出画面，不切镜")
+}
+class CreativeOptions(BaseModel):
+    model_config=ConfigDict(extra="forbid")
+    hair_enabled:bool=False
+    hairstyle:str="long-straight"
+    hair_details:str=Field(default="",max_length=300)
+    body_enabled:bool=False
+    height:int=Field(default=165,ge=120,le=220)
+    weight:int=Field(default=55,ge=30,le=200)
+    build:Literal["natural","slim","athletic","full"]="natural"
+    pose:str="template"
+
+def creative_prompt(options,kind):
+    p=CreativeOptions.model_validate(options).model_dump()
+    if p['hairstyle'] not in HAIRSTYLES or p['pose'] not in POSES:raise ValueError('未知可选技能')
+    allowed={'template','relaxed','weight-shift','quarter','catalog'} if kind=='image' else {'template','gentle-motion','turn','full-turn','calm-random'}
+    if p['pose'] not in allowed:raise ValueError('姿势技能与图片或视频类型不匹配')
+    lines=[]
+    if p['hair_enabled']:
+        if p['hairstyle']=='custom' and not p['hair_details'].strip():raise ValueError('请填写自定义发型')
+        lines.append('可选发型覆盖模板原发型约束：'+HAIRSTYLES[p['hairstyle']][1]+'；'+p['hair_details'])
+    if p['body_enabled']:lines.append(f"可选体型覆盖模板原体型约束：身高{p['height']}厘米，体重{p['weight']}公斤，体态{ {'natural':'自然匀称','slim':'偏纤细','athletic':'运动结实','full':'偏丰满'}[p['build']] }；数值只作视觉参考，不夸张人体比例。")
+    if p['pose']!='template':lines.append('可选姿势或动作覆盖模板原动作约束：'+POSES[p['pose']][1])
+    if lines:lines.append('背景与地面纯白#FFFFFF，固定水平全身机位，人物居中，头顶至鞋底占画面高度约84%，四肢和鞋子完整入镜，不增加服装或配饰。')
+    return p,'\n'.join(lines)

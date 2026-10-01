@@ -47,6 +47,9 @@ def validate(b):
         b['personal_profile_snapshot']=p
         b['person_mode']='self'
         b['prompt_override']=(b['prompt_override'] or t['prompt'])+'\n个人形象全身图提供脸部、体型、身材比例与已确认发型；独立脸部图若提供只补充五官细节。保持个人形象体型与发型，基础T恤和长裤必须替换为指定商品服装；不要沿用形象图的基础服装。姿势与构图遵循当前展示模板。'
+    options,extra=personal.creative_prompt(b.get('creative_options') or {},b['kind'])
+    b['creative_options']=options
+    if extra:b['prompt_override']=(b['prompt_override'] or t['prompt'])+'\n'+extra
     checked=check(b,m,t)
     from .billing import context
     checked['billing_snapshot']=context(checked)

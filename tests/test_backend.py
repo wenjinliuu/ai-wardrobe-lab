@@ -266,3 +266,31 @@ def test_personal_fullbody_prompt_reaches_provider(lab,image):
     assert checked['personal_settings']['body_mode']=='values'
     assert checked['asset_snapshot'][0]['role']=='identity'
     assert engine.template('personal-image',1)['negative_prompt']!=engine.template('personal-image',2)['negative_prompt']
+
+def test_creative_options_compiled_and_frozen(lab,image):
+    options={'hair_enabled':True,'hairstyle':'bob','body_enabled':True,'height':172,'weight':62,'build':'athletic','pose':'catalog'}
+    b=body(image,creative_options=options)
+    checked=engine.validate(b)
+    assert '短波波头' in checked['compiled_prompt']
+    assert '172厘米' in checked['compiled_prompt'] and '62公斤' in checked['compiled_prompt']
+    assert '克制' in checked['compiled_prompt'] and '#FFFFFF' in checked['compiled_prompt']
+    assert checked['creative_options']['pose']=='catalog'
+    b=body(image,kind='video',model='wan-flash',creative_options={'pose':'catalog'},image_confirmed=True)
+    with pytest.raises(ValueError,match='姿势技能'):engine.validate(b)
+
+def test_archive_bound_asset_retains_history_and_file(lab,image):
+    j=engine.create_job(body(image),'bound-archive-test')
+    r=lab.get('/api/assets/'+image['id']+'/bindings')
+    assert r.status_code==200 and r.json()['jobs'][0]['id']==j['id']
+    assert lab.delete('/api/assets/'+image['id']).status_code==422
+    assert lab.delete('/api/assets/'+image['id']+'?archive=true').status_code==200
+    assert json.loads(db.get_asset(image['id'])['details'])['library_hidden'] is True
+    assert lab.get('/api/assets/'+image['id']+'/file').status_code==200
+    assert db.get_job(j['id'])['state']=='queued'
+
+def test_generated_asset_purpose(lab,image):
+    from app.main import asset_purpose
+    assert asset_purpose({'kind':'image','template_snapshot':{'category':'garment_present'}})=='product'
+    assert asset_purpose({'kind':'image','template_snapshot':{'category':'outfit_image'}})=='outfit'
+    assert asset_purpose({'kind':'image','personal_settings':{'name':'test'}})=='personal'
+    assert asset_purpose({'kind':'video'})=='outfit_video'
