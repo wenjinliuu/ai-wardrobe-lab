@@ -39,7 +39,7 @@
       if(a.kind==='file'&&a.size>(m.file_mb||100)*1048576)fail('文档文件过大',i);
       if(r.url){try{const url=new URL(r.url);if(url.protocol!=='https:'||url.username||url.password||url.hash)throw Error();}catch{fail('外部素材需要完整 HTTPS URL',i);}}
       if(d.kind==='video'&&u==='first_frame'&&!['look','identity','pose'].includes(r.role))fail('首帧需要完整穿搭图，请调整素材角色',i);
-      if(m.adapter==='mini_image'&&!['look','identity','pose'].includes(r.role))fail('此模型的参考图仅支持人物主体',i);
+      if(m.adapter==='mini_image'&&!['look','identity','body','pose'].includes(r.role))fail('此模型的参考图仅支持人物主体',i);
     }
     for(const [u,n] of Object.entries(s.required||{}))if((counts[u]||0)<n)missing.push(`还需要 ${n-(counts[u]||0)} 件${name(u)}`);
     if(s.require_any&&!items.length)missing.push('请添加至少一件参考素材');

@@ -72,7 +72,7 @@ def validate(b,m,t):
             if parent:
                 pb=json.loads(parent['body'])
                 if pb.get('person_mode')=='self' or any(x['role']=='identity' for x in pb['refs']):raise ValueError('已知本人生成图需要通过方舟可信授权素材入口，不能用本地改写图绕过授权')
-        if r['role']=='identity' and not b['identity_consent']:raise ValueError('本人参考需要明确确认授权')
+        if r['role'] in ('identity','body') and not b['identity_consent']:raise ValueError('本人参考需要明确确认授权')
         if m.get('restricted_identity') and b['person_mode']=='self' and r['role'] in ('identity','pose','look','motion') and not (r.get('vendor_asset_id') or r.get('url') and r.get('trusted_original')):raise ValueError('Seedance本人素材须使用授权Asset ID或符合方舟信任条件的原始产物URL')
         metadata.update(role=r['role'],usage=u);snap.append(metadata)
     if counts['file'] and counts['link']:raise ValueError('万相3.0文档与网页不能同时输入')
@@ -128,7 +128,7 @@ def validate(b,m,t):
                 if len(rs)>3 or len({r['kind'] for r in rs})>1:raise ValueError('每个主体只能1～3图或1段视频，不能混用')
                 if rs[0]['kind']=='video' and (len(rs)>1 or next(x['duration'] for x in snap if x['id']==(rs[0].get('asset_id') or rs[0].get('url') or rs[0].get('vendor_asset_id')))>5):raise ValueError('主体视频最多1段5秒')
     if m.get('requires_workspace') and b['mode']=='live' and not urlsplit(config.PROVIDERS['dashscope']['base']).hostname.endswith('.cn-beijing.maas.aliyuncs.com'):raise ValueError('此模型需要北京工作空间端点，请设置DASHSCOPE_BASE_URL=https://工作空间ID.cn-beijing.maas.aliyuncs.com')
-    if m['adapter']=='mini_image' and any(r['role'] not in ('identity','pose','look') for r in refs):raise ValueError('MiniMax Image参考只用于人物主体，请使用人物图；不支持服装多图编辑')
+    if m['adapter']=='mini_image' and any(r['role'] not in ('identity','body','pose','look') for r in refs):raise ValueError('MiniMax Image参考只用于人物主体，请使用人物图；不支持服装多图编辑')
     if m['adapter']=='h3' and mode=='text' and b['ratio']=='adaptive':raise ValueError('H3纯文字模式需要明确画幅')
     if b['mode']=='live':
         inline_bytes=sum(db.get_asset(r['asset_id'])['size'] for r in refs if r.get('asset_id') and r['kind']=='image') if m.get('inline_images',True) and not config.PUBLIC_BASE.startswith('https://') else 0
@@ -142,7 +142,7 @@ def validate(b,m,t):
     lines=[];seq=Counter()
     for r in refs:
         seq[r['kind']]+=1;name={'image':'图','video':'视频','audio':'音频'}.get(r['kind'],'素材')+str(seq[r['kind']])
-        if m['adapter'] in ('native_kling_omni',):name='<<<'+r['kind']+'_'+str(seq[r['kind']])+'>>>'
+        if m['adapter'] in ('native_kling_omni',) or m['adapter'] in ('tx_kling_image','native_kling_image') and m['model']!='kling-image-v3':name='<<<'+r['kind']+'_'+str(seq[r['kind']])+'>>>'
         elif m['adapter'] in ('kling','kling_omni','kling_motion') and r['kind'] in ('element','voice'):name='@'+r['kind']+str(refs.index(r)+1)
         elif m['adapter']=='tx_pixverse':name='@ref'+str(seq[r['kind']])
         lines.append(name+'='+catalog.ROLES[r['role']]+'（'+catalog.USAGES[r['usage']]+'）')

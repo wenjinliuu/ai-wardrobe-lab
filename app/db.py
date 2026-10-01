@@ -32,6 +32,7 @@ def init():
         CREATE TABLE IF NOT EXISTS templates(id TEXT,version INTEGER,body TEXT NOT NULL,created REAL,PRIMARY KEY(id,version));
         CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,idem TEXT UNIQUE,request_hash TEXT,body TEXT NOT NULL,state TEXT,provider_task_id TEXT,result TEXT,outputs TEXT DEFAULT '[]',error TEXT DEFAULT '',attempt INTEGER DEFAULT 0,next_poll REAL DEFAULT 0,created REAL,updated REAL,reserved REAL DEFAULT 0,actual REAL,review TEXT,request_id TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT,stage TEXT,message TEXT,created REAL);
+        CREATE TABLE IF NOT EXISTS personal_profiles(id TEXT PRIMARY KEY,body TEXT NOT NULL,created REAL,updated REAL);
         CREATE TABLE IF NOT EXISTS login_attempts(ip TEXT,created REAL);
         """)
         if 'details' not in {r['name'] for r in db.execute('PRAGMA table_info(assets)')}:

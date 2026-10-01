@@ -4,7 +4,7 @@ import json
 import time
 import uuid
 from urllib.parse import urlsplit
-from . import assets, catalog, config, db, providers
+from . import assets, catalog, config, db, providers, personal
 from .security import redact
 
 def seed_templates():
@@ -32,6 +32,21 @@ def validate(b):
     from .capabilities import validate as check
     m=catalog.model(b['model_id']);t=template(b['template_id'],b['template_version'])
     if t['kind']!=b['kind'] or (m['kind']=='image')!=(b['kind']=='image'):raise ValueError('模板、模型与生成类型不匹配')
+    if b.get('personal_settings'):
+        if b['kind']!='image' or b['template_id']!='personal-image' or b.get('personal_profile_id'):raise ValueError('个人形象生成须使用个人形象图片模板')
+        p=personal.check(b['personal_settings']);b['personal_settings']=p
+        b['refs']=personal.refs(p);b['prompt_override']=personal.prompt(p)
+        b['video_mode']='reference' if b['refs'] else 'text'
+        b['person_mode']='self' if b['refs'] else 'default';b['identity_consent']=p['consent']
+    elif b['template_id']=='personal-image':raise ValueError('个人形象模板需要形象设置')
+    if b.get('personal_profile_id'):
+        p=personal.get(b['personal_profile_id'])
+        if b['kind']!='image':raise ValueError('个人形象先用于穿搭生图；视频请使用完整穿搭首帧')
+        if not any(r.get('asset_id')==p['asset_id'] and r['role']=='body' for r in b['refs']):raise ValueError('请选择个人形象全身参考图')
+        if b['mode']=='live' and p['mode']=='mock':raise ValueError('模拟形象不能用于真实穿搭，请先建立真实形象')
+        b['personal_profile_snapshot']=p
+        b['person_mode']='self'
+        b['prompt_override']=(b['prompt_override'] or t['prompt'])+'\n个人形象全身图提供脸部、体型、身材比例与已确认发型；独立脸部图若提供只补充五官细节。保持个人形象体型与发型，基础T恤和长裤必须替换为指定商品服装；不要沿用形象图的基础服装。姿势与构图遵循当前展示模板。'
     checked=check(b,m,t)
     from .billing import context
     checked['billing_snapshot']=context(checked)

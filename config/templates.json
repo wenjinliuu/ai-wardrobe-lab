@@ -411,5 +411,28 @@
       "asset_finalize",
       "human_review"
     ]
+  },
+  {
+    "id": "personal-image",
+    "version": 1,
+    "name": "个人形象 · 标准全身",
+    "kind": "image",
+    "category": "outfit_image",
+    "description": "建立可复用的白底全身个人形象；穿素色基础衣裤，固定构图。",
+    "prompt": "生成纯白背景全身个人形象，人物占画面高度84%。",
+    "negative_prompt": "背景杂物、拼图、多个人、头脚截断、肢体畸形、夸张身材",
+    "criteria": [
+      "脸部一致",
+      "发型符合选择",
+      "体型符合参考",
+      "全身完整",
+      "纯白背景"
+    ],
+    "workflow": [
+      "input_validate",
+      "outfit_image",
+      "asset_finalize",
+      "human_review"
+    ]
   }
 ]

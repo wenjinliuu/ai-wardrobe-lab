@@ -16,8 +16,9 @@ def model(id):
             return m
     raise ValueError("未知模型配置")
 
-ROLES = {"pose":"姿势模板","identity":"本人参考","upper":"上衣","lower":"下装","shoes":"鞋子","accessory":"配饰","background":"背景","look":"完整穿搭图","motion":"动作参考","audio":"声音参考","document":"文档参考"}
+ROLES = {"pose":"姿势模板","identity":"本人参考","body":"个人形象 / 体型参考","upper":"上衣","lower":"下装","shoes":"鞋子","accessory":"配饰","background":"背景","look":"完整穿搭图","motion":"动作参考","audio":"声音参考","document":"文档参考"}
 SKILLS = [
+ {"id":"personal_image","name":"个人形象建立","ai":True,"description":"照片外貌、发型模板、全身或数值体型分别选择；一次生成，确认后存为可复用参考。"},
  {"id":"input_validate","name":"素材与权限校验","ai":False,"description":"检查角色、数量、尺寸、真人授权、模型能力与预算。"},
  {"id":"garment_present","name":"商品图整理","ai":True,"description":"保留颜色、印花、轮廓，整理背景；保留原图。"},
  {"id":"outfit_image","name":"多图穿搭合成","ai":True,"description":"按素材角色一次合成人物、姿势与服装；不默认逐件多次调用。"},

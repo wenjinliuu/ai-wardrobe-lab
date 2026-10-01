@@ -188,3 +188,65 @@ def test_preview_board_maps_one_image(lab,image):
 def test_csv_formula_escaping(lab,image):
     engine.create_job(body(image,group='=SUM(1,2)'),'csv-formula-key')
     assert "'=SUM(1,2)" in lab.get('/api/export?format=csv').text
+
+
+def personal_request(image, **settings):
+    return JobInput(model_id='tx-kling-image-o1',template_id='personal-image',template_version=1,resolution='2K',ratio='9:16',personal_settings={'face_asset_id':image['id'],'hair_mode':'template','hairstyle':'bob','body_mode':'values','height':172,'weight':65,'consent':True,**settings}).model_dump()
+
+
+def test_personal_generate_confirm_and_reuse(lab,image):
+    b=personal_request(image)
+    preview=lab.post('/api/preview',json=b)
+    assert preview.status_code==200,preview.text
+    assert '172厘米' in preview.json()['prompt'] and '短波波头' in preview.json()['prompt']
+    assert '84%' in preview.json()['prompt'] and '素色长裤' in preview.json()['prompt']
+    j=engine.create_job(b,'personal-first-job')
+    row=run_until_terminal(j['id']);assert row['state']=='succeeded'
+    aid=json.loads(row['outputs'])[0]
+    frozen=json.loads(row['body'])['personal_settings']
+    save={'settings':frozen,'job_id':j['id'],'asset_id':aid,'confirmed':False}
+    assert lab.post('/api/personal-profiles',json=save).status_code==422
+    save['confirmed']=True
+    p=lab.post('/api/personal-profiles',json=save);assert p.status_code==200,p.text
+    pid=p.json()['id'];assert lab.post('/api/personal-profiles',json=save).json()['id']==pid
+    assert len(lab.get('/api/personal-profiles').json()['profiles'])==1
+    reuse=body(image,model='tx-kling-image-o1',identity_consent=True,person_mode='self',personal_profile_id=pid)
+    reuse['refs'].insert(0,{'asset_id':aid,'role':'body'})
+    checked=engine.validate(reuse)
+    assert checked['personal_profile_snapshot']['asset_id']==aid
+    assert '基础T恤和长裤必须替换' in checked['compiled_prompt']
+    assert lab.delete('/api/assets/'+aid).status_code==422
+    assert lab.delete('/api/personal-profiles/'+pid).status_code==200
+    assert checked['personal_profile_snapshot']['asset_id']==aid
+    assert lab.get('/api/personal-profiles').json()['profiles']==[]
+
+
+@pytest.mark.parametrize('changes',[{'consent':False},{'face_asset_id':None},{'body_mode':'photo'},{'hairstyle':'unknown'},{'height':230},{'weight':20},{'hair_mode':'template','hairstyle':'custom','hair_details':''}])
+def test_personal_invalid_settings_do_not_submit(lab,image,changes):
+    b=personal_request(image)
+    b['personal_settings'].update(changes)
+    r=lab.post('/api/jobs',headers={'Idempotency-Key':'invalid-personal-request'},json=b)
+    assert r.status_code==422
+    assert lab.get('/api/jobs').json()==[]
+
+
+def test_personal_input_switches_and_model_capacity(lab,image):
+    second=assets.save_bytes((config.DATA/'assets'/image['path']).read_bytes(),'body.png')
+    b=personal_request(image,body_asset_id=second['id'],body_mode='photo',hair_mode='photo')
+    checked=engine.validate(b)
+    assert len(checked['refs'])==2
+    assert [r['role'] for r in checked['refs']]==['identity','body']
+    b['model_id']='tx-kling-image-v3'
+    assert lab.post('/api/preview',json=b).status_code==422
+    b['model_id']='tx-kling-image-o1';b['personal_settings'].update(face_mode='description',appearance='成年女性，自然五官',hair_mode='template',body_mode='values')
+    assert engine.validate(b)['refs']==[]
+    b['personal_settings'].update(face_mode='photo',face_asset_id=None,body_mode='photo')
+    assert len(engine.validate(b)['refs'])==1
+
+
+def test_mock_personal_cannot_enter_paid_outfit(lab,image):
+    j=engine.create_job(personal_request(image),'personal-mock-live-test');row=run_until_terminal(j['id'])
+    aid=json.loads(row['outputs'])[0];p=lab.post('/api/personal-profiles',json={'settings':json.loads(row['body'])['personal_settings'],'job_id':j['id'],'asset_id':aid,'confirmed':True}).json()
+    b=body(image,model='tx-kling-image-o1',mode='live',identity_consent=True,paid_confirmed=True,personal_profile_id=p['id']);b['refs'].insert(0,{'asset_id':aid,'role':'body'})
+    r=lab.post('/api/preview',json=b)
+    assert r.status_code==422 and '模拟形象' in r.json()['detail']

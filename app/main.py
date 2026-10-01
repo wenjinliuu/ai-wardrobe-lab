@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, File, 
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
-from . import assets, catalog, config, db, engine
+from . import assets, catalog, config, db, engine, personal
 from .security import check_origin, require_auth, require_write, session, sign, validate_asset_signature
 
 @asynccontextmanager
@@ -126,6 +126,7 @@ def media(aid:str,expires:int,sig:str):
 @app.delete("/api/assets/{aid}",dependencies=[Depends(require_write)])
 def delete_asset(aid:str):
     a=db.get_asset(aid)
+    if any(aid in (p['asset_id'],p['settings'].get('face_asset_id'),p['settings'].get('body_asset_id')) for p in personal.listing()):raise ValueError('素材已被个人形象引用；请先移除对应形象')
     with db.connection() as conn:
         for r in conn.execute("SELECT body,outputs FROM jobs"):
             b=json.loads(r["body"])
@@ -171,6 +172,8 @@ class JobInput(Strict):
     label:str=Field(default="",max_length=100)
     group:str=Field(default="",max_length=100)
     mock_failure:Literal["none","generation","submit_unknown","save_once"]="none"
+    personal_settings:personal.Settings|None=None
+    personal_profile_id:str|None=Field(default=None,pattern=r"^[a-f0-9]{32}$")
 
 @app.post("/api/preview",dependencies=[Depends(require_write)])
 def preview(data:JobInput):
@@ -333,3 +336,32 @@ def demo_assets():
 app.mount("/static",StaticFiles(directory=config.ROOT/"web"),name="static")
 @app.get("/")
 def index():return FileResponse(config.ROOT/"web/index.html")
+
+
+@app.get('/api/personal-profiles',dependencies=[Depends(require_auth)])
+def personal_profiles():return {"profiles":personal.listing(),"hairstyles":[{"id":k,"name":v[0],"prompt":v[1]} for k,v in personal.HAIRSTYLES.items() if k!='photo']}
+
+class PersonalSave(Strict):
+    settings:personal.Settings
+    job_id:str=Field(pattern=r"^[a-f0-9]{32}$")
+    asset_id:str=Field(pattern=r"^[a-f0-9]{32}$")
+    confirmed:bool=False
+
+@app.post('/api/personal-profiles',dependencies=[Depends(require_write)])
+def save_personal(data:PersonalSave):
+    p=personal.check(data.settings.model_dump())
+    j=db.get_job(data.job_id)
+    if not data.confirmed:raise ValueError('请先确认个人形象的脸、发型、体型和全身完整性')
+    if not j or j['state']!='succeeded' or data.asset_id not in json.loads(j['outputs']):raise ValueError('请使用已成功生成的个人形象结果')
+    b=json.loads(j['body'])
+    if b.get('personal_settings')!=p:raise ValueError('设置与本次生成不一致，请生成后再保存')
+    if db.get_asset(data.asset_id)['kind']!='image':raise ValueError('个人形象须为图片')
+    existing=next((x for x in personal.listing() if x['job_id']==data.job_id and x['asset_id']==data.asset_id),None)
+    if existing:return existing
+    return personal.save(dict(settings=p,asset_id=data.asset_id,job_id=data.job_id,confirmed=True,mode=b['mode']))
+
+@app.delete('/api/personal-profiles/{pid}',dependencies=[Depends(require_write)])
+def delete_personal(pid:str):
+    personal.get(pid)
+    with db.connection() as c:c.execute('DELETE FROM personal_profiles WHERE id=?',(pid,))
+    return {'ok':True}
