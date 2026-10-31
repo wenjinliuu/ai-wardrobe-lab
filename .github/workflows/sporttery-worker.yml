@@ -1,0 +1,77 @@
+name: Sporttery backfill worker (football-prob-lab line 2)
+
+# 2026-10-31 项目所有者授权：借用本项目的轻量服务器为 wenjinliuu/football-prob-lab 跑一次性的体彩变赔历史回补。
+# 不修改、不重新部署衣橱实验室的代码和容器；只在服务器上的 ~/sporttery-worker 目录运行一个单线程脚本（每场间隔 1.5 秒，异常即停）。
+# 结果作为 Actions 附件保存，由 football-prob-lab 那边转存。仅手动触发。2026-10-31 所有者把本仓库改为公开以便运行 Actions。
+on:
+  workflow_dispatch:
+    inputs:
+      shard:
+        description: "football-prob-lab 仓库里的名单文件"
+        default: "data/backfill/shard_lighthouse.txt"
+permissions:
+  contents: read
+concurrency:
+  group: sporttery-worker
+  cancel-in-progress: false
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: wenjinliuu/football-prob-lab
+          path: fpl
+          sparse-checkout: |
+            scripts/fetch_history.py
+            data/backfill
+      - name: Configure SSH (same verified settings as deploy.yml)
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.LIGHTHOUSE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.LIGHTHOUSE_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.LIGHTHOUSE_HOST }}
+          SSH_USER: ${{ secrets.LIGHTHOUSE_USER }}
+          SSH_PORT: ${{ secrets.LIGHTHOUSE_PORT }}
+        run: |
+          set -euo pipefail
+          [[ -n "$SSH_PRIVATE_KEY" && -n "$SSH_KNOWN_HOSTS" && -n "$SSH_HOST" && -n "$SSH_USER" ]]
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/lighthouse
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/lighthouse ~/.ssh/known_hosts
+          printf '%s\n' 'Host lighthouse' "  HostName $SSH_HOST" "  User $SSH_USER" "  Port ${SSH_PORT:-22}" '  IdentityFile ~/.ssh/lighthouse' '  IdentitiesOnly yes' '  BatchMode yes' '  StrictHostKeyChecking yes' '  ConnectTimeout 20' '  ServerAliveInterval 15' '  ServerAliveCountMax 20' > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+      - name: Upload script and shard
+        env:
+          SHARD: ${{ github.event.inputs.shard }}
+        run: |
+          set -euo pipefail
+          [[ "$SHARD" =~ ^data/backfill/[a-z_]+\.txt$ ]]
+          ssh lighthouse 'mkdir -p ~/sporttery-worker/out && python3 --version'
+          scp fpl/scripts/fetch_history.py "fpl/$SHARD" lighthouse:sporttery-worker/
+      - name: Fetch (single thread, 1.5 s gap, stop on any anomaly)
+        env:
+          SHARD: ${{ github.event.inputs.shard }}
+        run: |
+          set -uo pipefail
+          ssh lighthouse "cd ~/sporttery-worker && python3 -u fetch_history.py --shard $(basename "$SHARD") --out out --halt-url https://raw.githubusercontent.com/wenjinliuu/football-prob-lab/main/data/backfill/HALT"
+          echo "FETCH_RC=$?" >> "$GITHUB_ENV"
+      - name: Download results
+        if: always()
+        run: |
+          mkdir -p results
+          ssh lighthouse 'cd ~/sporttery-worker && tar -czf - out' | tar -xzf - -C results
+          echo "files: $(ls results/out | wc -l)"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sporttery-history-lighthouse-${{ github.run_id }}
+          path: results/out
+          retention-days: 14
+      - name: Remove temporary SSH credential
+        if: always()
+        run: rm -f ~/.ssh/lighthouse ~/.ssh/config
+      - name: Report
+        if: always()
+        run: test "${FETCH_RC:-1}" = "0"
