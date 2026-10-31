@@ -51,7 +51,7 @@ jobs:
           SHARD: ${{ github.event.inputs.shard }}
         run: |
           set -euo pipefail
-          [[ "$SHARD" =~ ^data/backfill/[a-z_]+\.txt$ ]]
+          [[ "$SHARD" =~ ^data/backfill/[a-z0-9_]+\.txt$ ]]
           ssh lighthouse 'mkdir -p ~/sporttery-worker/out && python3 --version'
           scp fpl/scripts/fetch_history.py "fpl/$SHARD" lighthouse:sporttery-worker/
       - name: Fetch (single thread, 1.5 s gap, stop on any anomaly)
