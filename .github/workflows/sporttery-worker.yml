@@ -9,10 +9,14 @@ on:
       shard:
         description: "football-prob-lab 仓库里的名单文件"
         default: "data/backfill/shard_lighthouse.txt"
+      reverse:
+        description: "从名单末尾往前拉（同一台服务器的第二条线）"
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
-  group: sporttery-worker
+  group: sporttery-worker-${{ github.event.inputs.reverse }}
   cancel-in-progress: false
 jobs:
   fetch:
@@ -55,7 +59,7 @@ jobs:
           SHARD: ${{ github.event.inputs.shard }}
         run: |
           set -uo pipefail
-          ssh lighthouse "cd ~/sporttery-worker && python3 -u fetch_history.py --shard $(basename "$SHARD") --out out --halt-url https://raw.githubusercontent.com/wenjinliuu/football-prob-lab/main/data/backfill/HALT"
+          ssh lighthouse "cd ~/sporttery-worker && python3 -u fetch_history.py --shard $(basename "$SHARD") --out out ${{ github.event.inputs.reverse == 'true' && '--reverse' || '' }} --halt-url https://raw.githubusercontent.com/wenjinliuu/football-prob-lab/main/data/backfill/HALT"
           echo "FETCH_RC=$?" >> "$GITHUB_ENV"
       - name: Download results
         if: always()
