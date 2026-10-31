@@ -9,6 +9,9 @@ on:
       shard:
         description: "football-prob-lab 仓库里的名单文件"
         default: "data/backfill/shard_lighthouse.txt"
+      gap:
+        description: "每场间隔秒数（最小 1.5）"
+        default: "1.5"
       reverse:
         description: "从名单末尾往前拉（同一台服务器的第二条线）"
         type: boolean
@@ -57,9 +60,11 @@ jobs:
       - name: Fetch (single thread, 1.5 s gap, stop on any anomaly)
         env:
           SHARD: ${{ github.event.inputs.shard }}
+          GAP: ${{ github.event.inputs.gap || '1.5' }}
         run: |
           set -uo pipefail
-          ssh lighthouse "cd ~/sporttery-worker && python3 -u fetch_history.py --shard $(basename "$SHARD") --out out ${{ github.event.inputs.reverse == 'true' && '--reverse' || '' }} --halt-url https://raw.githubusercontent.com/wenjinliuu/football-prob-lab/main/data/backfill/HALT"
+          [[ "$GAP" =~ ^[0-9]+(\.[0-9]+)?$ ]] || exit 1
+          ssh lighthouse "cd ~/sporttery-worker && python3 -u fetch_history.py --shard $(basename "$SHARD") --out out --gap $GAP ${{ github.event.inputs.reverse == 'true' && '--reverse' || '' }} --halt-url https://raw.githubusercontent.com/wenjinliuu/football-prob-lab/main/data/backfill/HALT"
           echo "FETCH_RC=$?" >> "$GITHUB_ENV"
       - name: Download results
         if: always()
